@@ -1,6 +1,6 @@
 # Interaction Design Project
 
-Let's get A+ ^^
+Kitty the little bamboo
 
 # Dependencies
 
