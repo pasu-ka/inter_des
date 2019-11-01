@@ -22,14 +22,23 @@ Servo leafServo;
 
 int servoPin = 3;
 int micPinAnalogue = A0;
-int leafWiggleAngleAmount[] = {120, 60, 100, 0};
+int leafWiggleAngleAmount[] = {40, 100, 0};
 int soundLevelThreshold = 700;
+enum states {
+    sleep,
+    awake,
+    happy,
+    scared,
+    listening
+};
+int currentState;
 
 bool debugMode = false;
 
 
 // run setup code
 void setup() {
+  currentState = sleep;
   startDebug();
   setupLeafServo();
 }
@@ -39,9 +48,63 @@ void setup() {
 void loop() {
   if(debugMode) {
     microPhoneTest();
+    if(currentState == awake) {
+      wiggleLeaf(1);
+    }
+  }
+  checkState();
+}
+
+
+void checkState() {
+  switch(currentState) {
+    case sleep:
+      checkSleepState();
+      break;
+    case awake:
+      checkAwakeState();
+      break;
+    case happy:
+      break;
+    case scared:
+      break;
+    case listening:
+      break;
+  }
+  // TODO implement
+}
+
+
+void checkSleepState() {
+  //TODO pickup || noise
+  if(soundTresholdReached()) {
+    wakeUp();
   }
 }
 
+
+void checkAwakeState() {
+  //TODO do right
+  if(!soundTresholdReached()) {
+    sleepNow();
+  }
+}
+
+
+void sleepNow() {
+  currentState = sleep;
+}
+
+
+void wakeUp() {
+  currentState = awake;
+}
+
+
+// TODO two thresholds, talking, bang
+bool soundTresholdReached() {
+  return readSoundLevel() > soundLevelThreshold;
+}
 
 int readSoundLevel() {
   return analogRead(micPinAnalogue);
