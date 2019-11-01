@@ -6,6 +6,7 @@
   | Arduino | Hardware            |
   |---------|---------------------|
   | D3      | Leaf Servo          |
+  | A0      | Microphone          |
 
   Created 12 October 2019
   https://github.com/pasu-ka/inter_des
@@ -17,20 +18,33 @@
 
 
 // initialize globals
-int servoPin = 3;
 Servo leafServo;
+
+int servoPin = 3;
+int micPinAnalogue = A0;
 int leafWiggleAngleAmount[] = {120, 60, 100, 0};
+int soundLevelThreshold = 700;
+
+bool debugMode = false;
 
 
 // run setup code
 void setup() {
+  startDebug();
   setupLeafServo();
 }
 
 
 // run loop (forever)
 void loop() {
+  if(debugMode) {
+    microPhoneTest();
+  }
+}
 
+
+int readSoundLevel() {
+  return analogRead(micPinAnalogue);
 }
 
 
@@ -47,4 +61,24 @@ void wiggleLeaf(int wiggleRepetition) {
       delay(300);
     }
   }
+}
+
+
+void startDebug() {
+  debugMode = true;
+  Serial.begin(9600);
+}
+
+
+void microPhoneTest() {
+  if (readSoundLevel() > soundLevelThreshold){
+    logDebug("HIGH");
+  } else {
+    logDebug("LOW");
+  }
+}
+
+
+void logDebug(String text) {
+  Serial.println(text);
 }
