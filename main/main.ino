@@ -22,8 +22,8 @@ Servo leafServo;
 
 int servoPin = 3;
 int micPinAnalogue = A0;
-int leafWiggleAngleAmount[] = {40, 100, 0};
-int soundLevelThreshold = 700;
+int leafWiggleAngleAmount[] = {40, 180, 0};
+int soundLevelThreshold = 715;
 enum states {
     sleep,
     awake,
@@ -121,7 +121,7 @@ void wiggleLeaf(int wiggleRepetition) {
   for(int i = 0; i < wiggleRepetition; i++) {
     for(int wiggleAngle : leafWiggleAngleAmount) {
       leafServo.write(wiggleAngle);
-      delay(300);
+      delay(150);
     }
   }
 }
