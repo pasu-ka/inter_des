@@ -1,7 +1,8 @@
 /*
-  Short name or description of project
-  Long description of the project. What does this project do and why was is made for example.
+  Mr. Bamboo
+  A friendly little companion
 
+  
   Pinout
   | Arduino | Hardware            |
   |---------|---------------------|
@@ -14,12 +15,14 @@
   | A4      | I2C Data            |
   | A5      | I2C Clock           |
 
+
   Created 12 October 2019
   https://github.com/pasu-ka/inter_des
-
 */
 
+
 // include libraries
+
 #include <Servo.h>
 // #include <clock-arch.h>
 // #include <lc.h>
@@ -31,17 +34,26 @@
 #include <pt.h> // threading
 
 
+// pin declaration
+
+int gyroPinDigital  = 1;
+int leafServoPinPwm = 3;
+int vibraOnePinPwm  = 5;
+int vibraTwoPinPwm  = 6;
+int leafLedPinPwm   = 9;
+int micPinAnalogue  = A0;
+int i2cDataPin      = A4;
+int i2cClockPin     = A5;
+
+
 // initialize globals
+
 Servo leafServo;
-
-int servoPin = 3;
-int micPinAnalogue = A0;
-
-const int sampleWindow = 50; // Sample window width in mS (50 mS = 20Hz)
-unsigned int sample;
-
-int leafWiggleAngleAmount[] = {40, 180, 0};
-int soundLevelThreshold = 80;
+struct timer timer;
+// every protothread needs an own struct pt variable
+static struct pt pt1, pt2, pt3;
+unsigned int soundSample;
+int currentState;
 enum states {
   sleep,
   awake,
@@ -49,39 +61,45 @@ enum states {
   scared,
   listening
 };
-int currentState;
-
-bool debugMode = false;
-
-static int TIMEOUT = 5000;
-struct timer timer;
 
 
-// every protothread needs an own struct pt variable
-static struct pt pt1, pt2, pt3;
+// configurations
 
-// function declaration, because C is...
+// sample window width in mS (50 mS = 20Hz)
+const int soundSampleWindow   = 50;
+int soundLevelThreshold       = 80;
+int leafWiggleAngleAmount[]   = {40, 180, 0};
+bool debugMode                = true;
+static int stateChangeTimeout = 5000;
+
+
+// function declaration, because dark side of C
 
 bool soundTresholdReached();
 void logDebug(String text, int val);
 void logDebug(String text);
 
-// run setup code
- void setup() {
- currentState = sleep;
 
- startDebug();
+// run setup code
+
+void setup() {
+  if(debugMode) {
+    startDebug();
+  }
+  
+  currentState = sleep;
+
   setupLeafServo();
   /* Initialize the protothread state variables with PT_INIT(). */
   PT_INIT(&pt1);
   PT_INIT(&pt2);
   PT_INIT(&pt3);
-  
- }
+}
 
 
 // run loop (forever)
- void loop() {
+
+void loop() {
 //   if(debugMode) {
 //     microPhoneTest();
 //     if(currentState == awake) {
@@ -105,7 +123,7 @@ void logDebug(String text);
   analogWrite(5, 0);                                           // 진동모터를 0의 파워로 작동시킵니다. (OFF)
 
   delay(3000);      
- }
+}
 
 //void sampleAudio() {
 //  unsigned long startMillis= millis();  // Start of sample window
@@ -115,18 +133,18 @@ void logDebug(String text);
 //   unsigned int signalMin = 1024;
 // 
 //   // collect data for 50 mS
-//   while (millis() - startMillis < sampleWindow)
+//   while (millis() - startMillis < soundSampleWindow)
 //   {
-//      sample = analogRead(0);
-//      if (sample < 1024)  // toss out spurious readings
+//      soundSample = analogRead(0);
+//      if (soundSample < 1024)  // toss out spurious readings
 //      {
-//         if (sample > signalMax)
+//         if (soundSample > signalMax)
 //         {
-//            signalMax = sample;  // save just the max levels
+//            signalMax = soundSample;  // save just the max levels
 //         }
-//         else if (sample < signalMin)
+//         else if (soundSample < signalMin)
 //         {
-//            signalMin = sample;  // save just the min levels
+//            signalMin = soundSample;  // save just the min levels
 //         }
 //      }
 //   }
@@ -149,7 +167,7 @@ static int listenThread(struct pt *pt) {
 static int timeoutThread(struct pt *pt) {
   PT_BEGIN(pt);
   do {
-    timer_set(&timer, TIMEOUT);
+    timer_set(&timer, stateChangeTimeout);
     PT_WAIT_UNTIL(pt, timer_expired(&timer));
     if (currentState == awake) {
       currentState = sleep;
@@ -251,7 +269,7 @@ int readSoundLevel() {
 
 
 void setupLeafServo() {
-  leafServo.attach(servoPin);
+  leafServo.attach(leafServoPinPwm);
   leafServo.write(0);
 }
 
@@ -267,7 +285,6 @@ void wiggleLeaf(int wiggleRepetition) {
 
 
 static void startDebug() {
-  debugMode = true;
   Serial.begin(9600);
 }
 
