@@ -5,8 +5,14 @@
   Pinout
   | Arduino | Hardware            |
   |---------|---------------------|
-  | D3      | Leaf Servo          |
-  | A0      | Microphone          |
+  | D1      | Gyro INT            |
+  | D3      | Leaf Servo SIG      |
+  | D5      | Vibra 1 INT         |
+  | D6      | Vibra 2 INT         |
+  | D9      | Leaf LED            |
+  | A0      | Mic OUT             |
+  | A4      | I2C Data            |
+  | A5      | I2C Clock           |
 
   Created 12 October 2019
   https://github.com/pasu-ka/inter_des
@@ -30,6 +36,9 @@ Servo leafServo;
 
 int servoPin = 3;
 int micPinAnalogue = A0;
+
+const int sampleWindow = 50; // Sample window width in mS (50 mS = 20Hz)
+unsigned int sample;
 
 int leafWiggleAngleAmount[] = {40, 180, 0};
 int soundLevelThreshold = 80;
@@ -67,10 +76,7 @@ void logDebug(String text);
   PT_INIT(&pt1);
   PT_INIT(&pt2);
   PT_INIT(&pt3);
-  /* Then we schedule the two protothreads by repeatedly calling their
-    protothread functions and passing a pointer to the protothread
-    state variables as arguments.     */
-  // while(1) {
+  
  }
 
 
@@ -86,8 +92,49 @@ void logDebug(String text);
   listenThread(&pt1);
   timeoutThread(&pt2);
 //  moveThread(&pt3);
+//  sampleAudio();
 
+  analogWrite(5, 200);                                        // 진동모터를 200/255의 파워로 작동시킵니다.
+
+  delay(3000);                                                    // 3초간 대기
+
+  analogWrite(5, 100);                                       // 진동모터를 100/255의 파워로 작동시킵니다.
+
+  delay(3000);                                                    // 3초간 대기
+
+  analogWrite(5, 0);                                           // 진동모터를 0의 파워로 작동시킵니다. (OFF)
+
+  delay(3000);      
  }
+
+//void sampleAudio() {
+//  unsigned long startMillis= millis();  // Start of sample window
+//   unsigned int peakToPeak = 0;   // peak-to-peak level
+// 
+//   unsigned int signalMax = 0;
+//   unsigned int signalMin = 1024;
+// 
+//   // collect data for 50 mS
+//   while (millis() - startMillis < sampleWindow)
+//   {
+//      sample = analogRead(0);
+//      if (sample < 1024)  // toss out spurious readings
+//      {
+//         if (sample > signalMax)
+//         {
+//            signalMax = sample;  // save just the max levels
+//         }
+//         else if (sample < signalMin)
+//         {
+//            signalMin = sample;  // save just the min levels
+//         }
+//      }
+//   }
+//   peakToPeak = signalMax - signalMin;  // max - min = peak-peak amplitude
+//   double volts = (peakToPeak * 5.0) / 1024;  // convert to volts
+// 
+//   Serial.println(volts);
+//}
 
 static int listenThread(struct pt *pt) {
   PT_BEGIN(pt);
