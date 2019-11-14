@@ -2,7 +2,7 @@
   Mr. Bamboo
   A friendly little companion
 
-  
+
   Pinout
   | Arduino | Hardware            |
   |---------|---------------------|
@@ -61,32 +61,47 @@ enum states {
   scared,
   listening
 };
+static bool stateChanging = false;
 
 
 // configurations
 
-// sample window width in mS (50 mS = 20Hz)
-const int soundSampleWindow   = 50;
-int soundLevelThreshold       = 80;
+
+float soundLevelThreshold     = 2.4;
 int leafWiggleAngleAmount[]   = {40, 180, 0};
 bool debugMode                = true;
-static int stateChangeTimeout = 5000;
+
+// sample window width in mS (50 mS = 20Hz)
+const int SOUND_SAMPLE_WINDOW   = 100;
+const static int STATE_CHANGE_TIMEOUT = 5000;
+const int VIBRA_STRONG = 250;
+const int VIBRA_MIDDLE = 160;
+const int VIBRA_LOW = 80;
 
 
 // function declaration, because dark side of C
 
-bool soundTresholdReached();
+bool soundThresholdReached();
 void logDebug(String text, int val);
 void logDebug(String text);
+void startDebug();
+void setupLeafServo();
+void goAwakeFromSleep();
+void goSleep();
+void goAwakeFromSleep();
+void goAwakeFromListening();
+void goHappy();
+void goScared();
+void goListening();
 
 
 // run setup code
 
 void setup() {
-  if(debugMode) {
+  if (debugMode) {
     startDebug();
   }
-  
+
   currentState = sleep;
 
   setupLeafServo();
@@ -98,85 +113,54 @@ void setup() {
 
 
 // run loop (forever)
-
 void loop() {
-//   if(debugMode) {
-//     microPhoneTest();
-//     if(currentState == awake) {
-//       wiggleLeaf(1);
-//     }
-//   }
-//   checkState();
   listenThread(&pt1);
   timeoutThread(&pt2);
-//  moveThread(&pt3);
-//  sampleAudio();
-
-  analogWrite(5, 200);                                        // 진동모터를 200/255의 파워로 작동시킵니다.
-
-  delay(3000);                                                    // 3초간 대기
-
-  analogWrite(5, 100);                                       // 진동모터를 100/255의 파워로 작동시킵니다.
-
-  delay(3000);                                                    // 3초간 대기
-
-  analogWrite(5, 0);                                           // 진동모터를 0의 파워로 작동시킵니다. (OFF)
-
-  delay(3000);      
+  //  moveThread(&pt3);
 }
 
-//void sampleAudio() {
-//  unsigned long startMillis= millis();  // Start of sample window
-//   unsigned int peakToPeak = 0;   // peak-to-peak level
-// 
-//   unsigned int signalMax = 0;
-//   unsigned int signalMin = 1024;
-// 
-//   // collect data for 50 mS
-//   while (millis() - startMillis < soundSampleWindow)
-//   {
-//      soundSample = analogRead(0);
-//      if (soundSample < 1024)  // toss out spurious readings
-//      {
-//         if (soundSample > signalMax)
-//         {
-//            signalMax = soundSample;  // save just the max levels
-//         }
-//         else if (soundSample < signalMin)
-//         {
-//            signalMin = soundSample;  // save just the min levels
-//         }
-//      }
-//   }
-//   peakToPeak = signalMax - signalMin;  // max - min = peak-peak amplitude
-//   double volts = (peakToPeak * 5.0) / 1024;  // convert to volts
-// 
-//   Serial.println(volts);
-//}
 
-static int listenThread(struct pt *pt) {
+static void listenThread(struct pt *pt) {
   PT_BEGIN(pt);
   while (1) {
-    PT_WAIT_UNTIL(pt, soundTresholdReached());
-    logDebug("waking up");
-    wakeUp();
+    PT_WAIT_UNTIL(pt, soundThresholdReached());
+    if (!stateChanging) {
+      if (currentState == sleep) {
+        logDebug("waking up");
+        goAwakeFromSleep();
+      } else if (currentState == listening) {
+        logDebug("go to wake");
+        goAwakeFromListening();
+      }
+
+    }
   }
   PT_END(pt);
 }
 
-static int timeoutThread(struct pt *pt) {
+static unsigned long timeoutDur;
+
+static void timeoutThread(struct pt *pt) {
   PT_BEGIN(pt);
   do {
-    timer_set(&timer, stateChangeTimeout);
+    timer_set(&timer, STATE_CHANGE_TIMEOUT);
     PT_WAIT_UNTIL(pt, timer_expired(&timer));
-    if (currentState == awake) {
-      currentState = sleep;
-     logDebug("going to sleep from awake");
-//      sleepNow();
-    } else if (currentState == listening) {
-      currentState = listening;
-     logDebug("going to awake from listening");
-//      goAwake();
+    if (debugMode) {
+      int tmp = millis();
+      logDebug("timer: ", (tmp - timeoutDur) / 1000);
+      timeoutDur = tmp;
+    }
+    logDebug("timer RINGIDINGI");
+    if (!stateChanging) {
+      if (currentState == awake) {
+        goSleep();
+        logDebug("going to sleep from awake");
+        //      sleepNow();
+      } else if (currentState == listening) {
+        currentState = awake;
+        logDebug("going to awake from listening");
+        goAwakeFromListening();
+      }
     }
 
     // PT_WAIT_UNTIL(pt, timeoutReached());
@@ -186,9 +170,10 @@ static int timeoutThread(struct pt *pt) {
 }
 
 static void resetTimer() {
- logDebug("reset timer");
- // PT_END(&pt2);
- // timeoutThread(&pt2);
+  logDebug("reset timer");
+  //  PT_BEGIN(&pt2);
+  PT_EXIT(&pt2);
+  //  timeoutThread(&pt2);
 }
 
 static int moveThread(struct pt *pt) {
@@ -201,65 +186,166 @@ static int moveThread(struct pt *pt) {
   PT_END(pt);
 }
 
-void checkState() {
-  switch (currentState) {
-    case sleep:
-      checkSleepState();
-      break;
-    case awake:
-      checkAwakeState();
-      break;
-    case happy:
-      break;
-    case scared:
-      break;
-    case listening:
-      break;
+//void changeState(state) {
+//  stateChanging = true;
+//  switch (state) {
+//  case sleep:
+//    goSleep();
+//    break;
+//  case awake:
+//    goAwake();
+//    break;
+//  case happy:
+//    goHappy();
+//  case scared:
+//    goScared();
+//  case listening:
+//    goListening();
+//  } final {
+//    stateChanging = false;
+//  }
+//}
+
+
+void goSleep() {
+  stateChanging = true;
+  currentState = sleep;
+  // TODO close eyes
+  // TODO lower tail
+  if (debugMode) {
+    vibrate(VIBRA_MIDDLE, 40, true);
   }
-  // TODO implement
+  resetTimer();
+  stateChanging = false;
 }
+
+void goAwakeFromSleep() {
+  stateChanging = true;
+  currentState = awake;
+  if (debugMode) {
+    vibrate(VIBRA_STRONG, 20, true);
+  }
+  resetTimer();
+  stateChanging = false;
+}
+
+void goAwakeFromListening() {
+
+}
+
+void goHappy() {
+
+}
+
+void goScared() {
+
+}
+void goListening() {
+
+}
+
+void vibrate(int strength, int duration, bool decreaseOverTime) {
+  if (decreaseOverTime) {
+    for (int i = 0; i < duration; i++) {
+      analogWrite(vibraOnePinPwm, strength);
+      strength = strength - 2;
+      if (strength < 0) {
+        break;
+      }
+      delay(100);
+    }
+  } else {
+
+  }
+  analogWrite(vibraOnePinPwm, 0);
+}
+
+
+//void checkState() {
+//  switch (currentState) {
+//    case sleep:
+//      checkSleepState();
+//      break;
+//    case awake:
+//      checkAwakeState();
+//      break;
+//    case happy:
+//      break;
+//    case scared:
+//      break;
+//    case listening:
+//      break;
+//  }
+//  // TODO implement
+//}
 
 void timeoutReached() {
   return;
 }
 
-void checkSleepState() {
-  //TODO pickup || noise
-  if (soundTresholdReached()) {
-    wakeUp();
-  }
-}
+//void checkSleepState() {
+//  //TODO pickup || noise
+//  if (soundThresholdReached()) {
+//    wakeUp();
+//  }
+//}
 
 
-void checkAwakeState() {
-  //TODO do right
-  if (!soundTresholdReached()) {
-    sleepNow();
-  }
-}
+//void checkAwakeState() {
+//  //TODO do right
+//  if (!soundThresholdReached()) {
+//    sleepNow();
+//  }
+//}
 
 
-void sleepNow() {
-  currentState = sleep;
-  resetTimer();
-}
-
-
-void wakeUp() {
-  currentState = awake;
-  wiggleLeaf(1);
+//void sleepNow() {
+//  currentState = sleep;
 //  resetTimer();
-}
+//}
 
-void goAwake() {
-  currentState = awake;
-  resetTimer();
-}
+
+//void wakeUp() {
+//  currentState = awake;
+//  wiggleLeaf(1);
+//  //  resetTimer();
+//}
+
+//void goAwake() {
+//  currentState = awake;
+//  resetTimer();
+//}
 
 
 // TODO two thresholds, talking, bang
-bool soundTresholdReached() {
-  return readSoundLevel() > soundLevelThreshold;
+bool soundThresholdReached() {
+  unsigned long startMillis = millis(); // Start of sample window
+  unsigned int peakToPeak = 0;   // peak-to-peak level
+
+  unsigned int signalMax = 0;
+  unsigned int signalMin = 1024;
+
+  // collect data for 50 mS
+  while (millis() - startMillis < SOUND_SAMPLE_WINDOW)
+  {
+    soundSample = analogRead(0);
+    if (soundSample < 1024)  // toss out spurious readings
+    {
+      if (soundSample > signalMax)
+      {
+        signalMax = soundSample;  // save just the max levels
+      }
+      else if (soundSample < signalMin)
+      {
+        signalMin = soundSample;  // save just the min levels
+      }
+    }
+  }
+  peakToPeak = signalMax - signalMin;  // max - min = peak-peak amplitude
+  double volts = (peakToPeak * 5.0) / 1024;  // convert to volts
+
+  //  Serial.println(volts);
+  return volts > soundLevelThreshold;
 }
 
 int readSoundLevel() {
@@ -286,6 +372,7 @@ void wiggleLeaf(int wiggleRepetition) {
 
 static void startDebug() {
   Serial.begin(9600);
+  logDebug("starting debug");
 }
 
 
