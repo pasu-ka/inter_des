@@ -91,12 +91,8 @@ const int VIBRA_LOW                   = 80;
 
 // LED matrix vars
 #define MATRIX_EYES         0
-#define MATRIX_MOUTH_LEFT   1
-#define MATRIX_MOUTH_MIDDLE 2
-#define MATRIX_MOUTH_RIGHT  3
-Adafruit_8x8matrix matrix[4] = { // Array of Adafruit_8x8matrix objects
-  Adafruit_8x8matrix(), Adafruit_8x8matrix(),
-  Adafruit_8x8matrix(), Adafruit_8x8matrix()
+Adafruit_8x8matrix matrix[1] = { // Array of Adafruit_8x8matrix objects
+  Adafruit_8x8matrix()
 };
 
 // Rather than assigning matrix addresses sequentially in a loop, each
@@ -153,62 +149,6 @@ blinkImg[][8] = {    // Eye animation frames
     B00000000,
     B00000000
   }
-},
-mouthImg[][24] = {                 // Mouth animation frames
-  { B00000000, B00000000, B00000000, // Mouth position A
-    B00000000, B00000000, B00000000,
-    B01111111, B11111111, B11111110,
-    B00000000, B00000000, B00000000,
-    B00000000, B00000000, B00000000,
-    B00000000, B00000000, B00000000,
-    B00000000, B00000000, B00000000,
-    B00000000, B00000000, B00000000
-  },
-  { B00000000, B00000000, B00000000, // Mouth position B
-    B00000000, B00000000, B00000000,
-    B00111111, B11111111, B11111100,
-    B00000111, B00000000, B11100000,
-    B00000000, B11111111, B00000000,
-    B00000000, B00000000, B00000000,
-    B00000000, B00000000, B00000000,
-    B00000000, B00000000, B00000000
-  },
-  { B00000000, B00000000, B00000000, // Mouth position C
-    B00000000, B00000000, B00000000,
-    B00111111, B11111111, B11111100,
-    B00001000, B00000000, B00010000,
-    B00000110, B00000000, B01100000,
-    B00000001, B11000011, B10000000,
-    B00000000, B00111100, B00000000,
-    B00000000, B00000000, B00000000
-  },
-  { B00000000, B00000000, B00000000, // Mouth position D
-    B00000000, B00000000, B00000000,
-    B00111111, B11111111, B11111100,
-    B00100000, B00000000, B00000100,
-    B00010000, B00000000, B00001000,
-    B00001100, B00000000, B00110000,
-    B00000011, B10000001, B11000000,
-    B00000000, B01111110, B00000000
-  },
-  { B00000000, B00000000, B00000000, // Mouth position E
-    B00000000, B00111100, B00000000,
-    B00011111, B11000011, B11111000,
-    B00000011, B10000001, B11000000,
-    B00000000, B01111110, B00000000,
-    B00000000, B00000000, B00000000,
-    B00000000, B00000000, B00000000,
-    B00000000, B00000000, B00000000
-  },
-  { B00000000, B00111100, B00000000, // Mouth position F
-    B00000000, B11000011, B00000000,
-    B00001111, B00000000, B11110000,
-    B00000001, B00000000, B10000000,
-    B00000000, B11000011, B00000000,
-    B00000000, B00111100, B00000000,
-    B00000000, B00000000, B00000000,
-    B00000000, B00000000, B00000000
-  }
 };
 
 uint8_t
@@ -223,6 +163,40 @@ eyeX = 3, eyeY = 3,   // Current eye position
 newX = 3, newY = 3,   // Next eye position
 dX   = 0, dY   = 0;   // Distance from prior to new position
 
+
+// MPU Gyro
+// I2Cdev and MPU6050 must be installed as libraries, or else the .cpp/.h files
+// for both classes must be in the include path of your project
+#include "I2Cdev.h"
+#include "MPU6050.h"
+
+// Arduino Wire library is required if I2Cdev I2CDEV_ARDUINO_WIRE implementation
+// is used in I2Cdev.h
+#if I2CDEV_IMPLEMENTATION == I2CDEV_ARDUINO_WIRE
+    #include "Wire.h"
+#endif
+
+// class default I2C address is 0x68
+// specific I2C addresses may be passed as a parameter here
+// AD0 low = 0x68 (default for InvenSense evaluation board)
+// AD0 high = 0x69
+MPU6050 accelgyro;
+//MPU6050 accelgyro(0x69); // <-- use for AD0 high
+
+int16_t ax, ay, az;
+int16_t gx, gy, gz;
+
+
+
+// uncomment "OUTPUT_READABLE_ACCELGYRO" if you want to see a tab-separated
+// list of the accel X/Y/Z and then gyro X/Y/Z values in decimal. Easy to read,
+// not so easy to parse, and slow(er) over UART.
+#define OUTPUT_READABLE_ACCELGYRO
+
+// uncomment "OUTPUT_BINARY_ACCELGYRO" to send all 6 axes of data as 16-bit
+// binary, one right after the other. This is very fast (as fast as possible
+// without compression or data loss), and easy to parse, but impossible to read
+// for a human.
 
 // function declaration, because dark side of C
 
@@ -240,6 +214,7 @@ void goScared();
 void goListening();
 void setupEyeLedMatrix();
 void playWithEyesDebug();
+void setupMpu();
 
 
 // run setup code
@@ -253,6 +228,7 @@ void setup() {
 
   setupLeafServo();
   setupEyeLedMatrix();
+  setupMpu();
   /* Initialize the protothread state variables with PT_INIT(). */
   PT_INIT(&pt1);
   PT_INIT(&pt2);
@@ -263,10 +239,11 @@ void setup() {
 // run loop (forever)
 void loop() {
   if (debugMode) {
-    playWithEyesDebug();
+//        playWithEyesDebug();
+    debugMpu();
   }
-  listenThread(&pt1);
-  timeoutThread(&pt2);
+//    listenThread(&pt1);
+//    timeoutThread(&pt2);
   //  moveThread(&pt3);
 }
 
@@ -426,7 +403,7 @@ int soundThresholdReached() {
   }
   peakToPeak = signalMax - signalMin;  // max - min = peak-peak amplitude
   double volts = (peakToPeak * 5.0) / 1024;  // convert to volts
-
+//  logDebug("bleb",volts);
   if (volts > soundLevelThresholdScared) {
     return bang;
   } else if (volts > soundLevelThresholdWakeup) {
@@ -460,12 +437,36 @@ void setupEyeLedMatrix() {
   }
 }
 
-// Draw mouth image across three adjacent displays
-void drawMouth(const uint8_t *img) {
-  for (uint8_t i = 0; i < 3; i++) {
-    matrix[MATRIX_MOUTH_LEFT + i].clear();
-    matrix[MATRIX_MOUTH_LEFT + i].drawBitmap(i * -8, 0, img, 24, 8, LED_ON);
-  }
+void debugMpu() {
+  // read raw accel/gyro measurements from device
+    accelgyro.getMotion6(&ax, &ay, &az, &gx, &gy, &gz);
+
+    // these methods (and a few others) are also available
+    //accelgyro.getAcceleration(&ax, &ay, &az);
+    //accelgyro.getRotation(&gx, &gy, &gz);
+
+    #ifdef OUTPUT_READABLE_ACCELGYRO
+        // display tab-separated accel/gyro x/y/z values
+        Serial.print("a/g:\t");
+//        Serial.print(ax); Serial.print("\t");
+//        Serial.print(ay); Serial.print("\t");
+//        Serial.print(az); Serial.print("\t");
+//        Serial.println();
+        Serial.print(gx); Serial.print("\t");
+        Serial.print(gy); Serial.print("\t");
+        Serial.println(gz);
+    #endif
+
+    #ifdef OUTPUT_BINARY_ACCELGYRO
+//        Serial.write((uint8_t)(ax >> 8)); Serial.write((uint8_t)(ax & 0xFF));
+//        Serial.write((uint8_t)(ay >> 8)); Serial.write((uint8_t)(ay & 0xFF));
+//        Serial.write((uint8_t)(az >> 8)); Serial.write((uint8_t)(az & 0xFF));
+        Serial.write((uint8_t)(gx >> 8)); Serial.write((uint8_t)(gx & 0xFF));
+        Serial.write((uint8_t)(gy >> 8)); Serial.write((uint8_t)(gy & 0xFF));
+        Serial.write((uint8_t)(gz >> 8)); Serial.write((uint8_t)(gz & 0xFF));
+//Serial.println();
+    #endif
+    delay(500);
 }
 
 void playWithEyesDebug() {
@@ -508,23 +509,55 @@ void playWithEyesDebug() {
     // Not in motion yet -- draw pupil at current static position
     matrix[MATRIX_EYES].fillRect(eyeX, eyeY, 2, 2, LED_OFF);
   }
-
-  // Draw mouth, switch to new random image periodically
-  drawMouth(mouthImg[mouthPos]);
-  if (--mouthCountdown == 0) {
-    mouthPos = random(6); // Random image
-    // If the 'neutral' position was chosen, there's a 1-in-5 chance we'll
-    // select a longer hold time.  This gives the appearance of periodic
-    // pauses in speech (e.g. between sentences, etc.).
-    mouthCountdown = ((mouthPos == 0) && (random(5) == 0)) ?
-                     random(10, 40) : // Longer random duration
-                     random(2, 8);    // Shorter random duration
-  }
-
   // Refresh all of the matrices in one quick pass
   for (uint8_t i = 0; i < 4; i++) matrix[i].writeDisplay();
 
   delay(20); // ~50 FPS
+}
+
+void setupMpu() {
+  // join I2C bus (I2Cdev library doesn't do this automatically)
+    #if I2CDEV_IMPLEMENTATION == I2CDEV_ARDUINO_WIRE
+        Wire.begin();
+    #elif I2CDEV_IMPLEMENTATION == I2CDEV_BUILTIN_FASTWIRE
+        Fastwire::setup(400, true);
+    #endif
+
+    // initialize serial communication
+    // (38400 chosen because it works as well at 8MHz as it does at 16MHz, but
+    // it's really up to you depending on your project)
+//    Serial.begin(38400);
+
+    // initialize device
+    Serial.println("Initializing I2C devices...");
+    accelgyro.initialize();
+
+    // verify connection
+    Serial.println("Testing device connections...");
+    Serial.println(accelgyro.testConnection() ? "MPU6050 connection successful" : "MPU6050 connection failed");
+
+    // use the code below to change accel/gyro offset values
+    /*
+    Serial.println("Updating internal sensor offsets...");
+    // -76  -2359 1688  0 0 0
+    Serial.print(accelgyro.getXAccelOffset()); Serial.print("\t"); // -76
+    Serial.print(accelgyro.getYAccelOffset()); Serial.print("\t"); // -2359
+    Serial.print(accelgyro.getZAccelOffset()); Serial.print("\t"); // 1688
+    Serial.print(accelgyro.getXGyroOffset()); Serial.print("\t"); // 0
+    Serial.print(accelgyro.getYGyroOffset()); Serial.print("\t"); // 0
+    Serial.print(accelgyro.getZGyroOffset()); Serial.print("\t"); // 0
+    Serial.print("\n");
+    accelgyro.setXGyroOffset(220);
+    accelgyro.setYGyroOffset(76);
+    accelgyro.setZGyroOffset(-85);
+    Serial.print(accelgyro.getXAccelOffset()); Serial.print("\t"); // -76
+    Serial.print(accelgyro.getYAccelOffset()); Serial.print("\t"); // -2359
+    Serial.print(accelgyro.getZAccelOffset()); Serial.print("\t"); // 1688
+    Serial.print(accelgyro.getXGyroOffset()); Serial.print("\t"); // 0
+    Serial.print(accelgyro.getYGyroOffset()); Serial.print("\t"); // 0
+    Serial.print(accelgyro.getZGyroOffset()); Serial.print("\t"); // 0
+    Serial.print("\n");
+    */
 }
 
 
