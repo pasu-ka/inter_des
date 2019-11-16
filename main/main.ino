@@ -173,7 +173,7 @@ dX   = 0, dY   = 0;   // Distance from prior to new position
 // Arduino Wire library is required if I2Cdev I2CDEV_ARDUINO_WIRE implementation
 // is used in I2Cdev.h
 #if I2CDEV_IMPLEMENTATION == I2CDEV_ARDUINO_WIRE
-    #include "Wire.h"
+#include "Wire.h"
 #endif
 
 // class default I2C address is 0x68
@@ -198,6 +198,7 @@ int16_t gx, gy, gz;
 // without compression or data loss), and easy to parse, but impossible to read
 // for a human.
 
+
 // function declaration, because dark side of C
 
 int soundThresholdReached();
@@ -220,9 +221,7 @@ void setupMpu();
 // run setup code
 
 void setup() {
-  if (debugMode) {
-    startDebug();
-  }
+  Serial.begin(9600);
 
   currentState = sleep;
 
@@ -239,24 +238,29 @@ void setup() {
 // run loop (forever)
 void loop() {
   if (debugMode) {
-//        playWithEyesDebug();
-    debugMpu();
+    //        playWithEyesDebug();
+//    debugMpu();
+    //    wiggleLeaf(1);
   }
-//    listenThread(&pt1);
-//    timeoutThread(&pt2);
+      listenThread(&pt1);
+      timeoutThread(&pt2);
   //  moveThread(&pt3);
 }
 
 
 static void listenThread(struct pt *pt) {
   PT_BEGIN(pt);
-  int soundLevel = 3;
+  int soundLevel;
   while (1) {
     PT_WAIT_UNTIL(pt, soundLevel = soundThresholdReached());
     if (!stateChanging) {
       if (soundLevel == talking) {
         if (currentState == sleep) {
           goAwakeFromSleep();
+        } else if (currentState == awake) {
+          goListening();
+        } else if (currentState == listening) {
+          resetTimer();
         }
       } else if (soundLevel == bang) {
         goScared();
@@ -272,12 +276,12 @@ static void timeoutThread(struct pt *pt) {
   do {
     timer_set(&timer, STATE_CHANGE_TIMEOUT);
     PT_WAIT_UNTIL(pt, timer_expired(&timer));
-    if (debugMode) {
-      int tmp = millis();
-      logDebug("timer: ", (tmp - timeoutDur) / 1000);
-      timeoutDur = tmp;
-    }
-    logDebug("timer RINGIDINGI");
+//    if (debugMode) {
+//      int tmp = millis();
+//      logDebug("timer: ", (tmp - timeoutDur) / 1000);
+//      timeoutDur = tmp;
+//    }
+//    logDebug("timer RINGIDINGI");
     if (!stateChanging) {
       if (currentState == awake) {
         goSleep();
@@ -287,9 +291,6 @@ static void timeoutThread(struct pt *pt) {
         goAwakeFromListening();
       }
     }
-
-    // PT_WAIT_UNTIL(pt, timeoutReached());
-    // do_something();
   } while (1);
   PT_END(pt); // TODO not necessary?
 }
@@ -297,9 +298,7 @@ static void timeoutThread(struct pt *pt) {
 
 static void resetTimer() {
   logDebug("reset timer");
-  //  PT_BEGIN(&pt2);
   PT_EXIT(&pt2);
-  //  timeoutThread(&pt2);
 }
 
 
@@ -318,8 +317,6 @@ void goSleep() {
   stateChanging = true;
   logDebug("going to sleep");
   currentState = sleep;
-  // TODO close eyes
-  // TODO lower tail
   if (debugMode) {
     vibrate(VIBRA_MIDDLE, 40, true);
   }
@@ -341,12 +338,12 @@ void goAwakeFromSleep() {
 
 
 void goAwakeFromListening() {
-
+  logDebug("going to awake from listening");
 }
 
 
 void goHappy() {
-
+  logDebug("going to happy");
 }
 
 
@@ -356,7 +353,7 @@ void goScared() {
 
 
 void goListening() {
-
+  logDebug("going to listening");
 }
 
 
@@ -377,7 +374,6 @@ void vibrate(int strength, int duration, bool decreaseOverTime) {
 }
 
 
-// TODO two thresholds, talking, bang
 int soundThresholdReached() {
   unsigned long startMillis = millis(); // Start of sample window
   unsigned int peakToPeak = 0;   // peak-to-peak level
@@ -403,7 +399,7 @@ int soundThresholdReached() {
   }
   peakToPeak = signalMax - signalMin;  // max - min = peak-peak amplitude
   double volts = (peakToPeak * 5.0) / 1024;  // convert to volts
-//  logDebug("bleb",volts);
+  //  logDebug("bleb",volts);
   if (volts > soundLevelThresholdScared) {
     return bang;
   } else if (volts > soundLevelThresholdWakeup) {
@@ -439,34 +435,40 @@ void setupEyeLedMatrix() {
 
 void debugMpu() {
   // read raw accel/gyro measurements from device
-    accelgyro.getMotion6(&ax, &ay, &az, &gx, &gy, &gz);
+  accelgyro.getMotion6(&ax, &ay, &az, &gx, &gy, &gz);
 
-    // these methods (and a few others) are also available
-    //accelgyro.getAcceleration(&ax, &ay, &az);
-    //accelgyro.getRotation(&gx, &gy, &gz);
+  //    int val = map(ax, -32768, +32767, 0, 255);
+  //     int val = map(gz, -32768, +32767, 0, 255);
 
-    #ifdef OUTPUT_READABLE_ACCELGYRO
-        // display tab-separated accel/gyro x/y/z values
-        Serial.print("a/g:\t");
-//        Serial.print(ax); Serial.print("\t");
-//        Serial.print(ay); Serial.print("\t");
-//        Serial.print(az); Serial.print("\t");
-//        Serial.println();
-        Serial.print(gx); Serial.print("\t");
-        Serial.print(gy); Serial.print("\t");
-        Serial.println(gz);
-    #endif
+  //    leafServo.write(val);
+  //    delay(1);
 
-    #ifdef OUTPUT_BINARY_ACCELGYRO
-//        Serial.write((uint8_t)(ax >> 8)); Serial.write((uint8_t)(ax & 0xFF));
-//        Serial.write((uint8_t)(ay >> 8)); Serial.write((uint8_t)(ay & 0xFF));
-//        Serial.write((uint8_t)(az >> 8)); Serial.write((uint8_t)(az & 0xFF));
-        Serial.write((uint8_t)(gx >> 8)); Serial.write((uint8_t)(gx & 0xFF));
-        Serial.write((uint8_t)(gy >> 8)); Serial.write((uint8_t)(gy & 0xFF));
-        Serial.write((uint8_t)(gz >> 8)); Serial.write((uint8_t)(gz & 0xFF));
-//Serial.println();
-    #endif
-    delay(500);
+  // these methods (and a few others) are also available
+  //accelgyro.getAcceleration(&ax, &ay, &az);
+  //accelgyro.getRotation(&gx, &gy, &gz);
+
+#ifdef OUTPUT_READABLE_ACCELGYRO
+  // display tab-separated accel/gyro x/y/z values
+  //        Serial.print("a/g:\t");
+  //        Serial.print(ax); Serial.print("\t");
+  //        Serial.print(ay); Serial.print("\t");
+  //        Serial.print(az); Serial.print("\t");
+  //        Serial.println();
+  Serial.print(gx); Serial.print("\t");
+  Serial.print(gy); Serial.print("\t");
+  Serial.println(gz);
+#endif
+
+#ifdef OUTPUT_BINARY_ACCELGYRO
+  //        Serial.write((uint8_t)(ax >> 8)); Serial.write((uint8_t)(ax & 0xFF));
+  //        Serial.write((uint8_t)(ay >> 8)); Serial.write((uint8_t)(ay & 0xFF));
+  //        Serial.write((uint8_t)(az >> 8)); Serial.write((uint8_t)(az & 0xFF));
+  Serial.write((uint8_t)(gx >> 8)); Serial.write((uint8_t)(gx & 0xFF));
+  Serial.write((uint8_t)(gy >> 8)); Serial.write((uint8_t)(gy & 0xFF));
+  Serial.write((uint8_t)(gz >> 8)); Serial.write((uint8_t)(gz & 0xFF));
+  Serial.println();
+#endif
+  delay(200);
 }
 
 void playWithEyesDebug() {
@@ -517,27 +519,27 @@ void playWithEyesDebug() {
 
 void setupMpu() {
   // join I2C bus (I2Cdev library doesn't do this automatically)
-    #if I2CDEV_IMPLEMENTATION == I2CDEV_ARDUINO_WIRE
-        Wire.begin();
-    #elif I2CDEV_IMPLEMENTATION == I2CDEV_BUILTIN_FASTWIRE
-        Fastwire::setup(400, true);
-    #endif
+#if I2CDEV_IMPLEMENTATION == I2CDEV_ARDUINO_WIRE
+  Wire.begin();
+#elif I2CDEV_IMPLEMENTATION == I2CDEV_BUILTIN_FASTWIRE
+  Fastwire::setup(400, true);
+#endif
 
-    // initialize serial communication
-    // (38400 chosen because it works as well at 8MHz as it does at 16MHz, but
-    // it's really up to you depending on your project)
-//    Serial.begin(38400);
+  // initialize serial communication
+  // (38400 chosen because it works as well at 8MHz as it does at 16MHz, but
+  // it's really up to you depending on your project)
+  //    Serial.begin(38400);
 
-    // initialize device
-    Serial.println("Initializing I2C devices...");
-    accelgyro.initialize();
+  // initialize device
+  Serial.println("Initializing I2C devices...");
+  accelgyro.initialize();
 
-    // verify connection
-    Serial.println("Testing device connections...");
-    Serial.println(accelgyro.testConnection() ? "MPU6050 connection successful" : "MPU6050 connection failed");
+  // verify connection
+  Serial.println("Testing device connections...");
+  Serial.println(accelgyro.testConnection() ? "MPU6050 connection successful" : "MPU6050 connection failed");
 
-    // use the code below to change accel/gyro offset values
-    /*
+  // use the code below to change accel/gyro offset values
+  /*
     Serial.println("Updating internal sensor offsets...");
     // -76  -2359 1688  0 0 0
     Serial.print(accelgyro.getXAccelOffset()); Serial.print("\t"); // -76
@@ -557,7 +559,7 @@ void setupMpu() {
     Serial.print(accelgyro.getYGyroOffset()); Serial.print("\t"); // 0
     Serial.print(accelgyro.getZGyroOffset()); Serial.print("\t"); // 0
     Serial.print("\n");
-    */
+  */
 }
 
 
@@ -566,17 +568,10 @@ void wiggleLeaf(int wiggleRepetition) {
   for (int i = 0; i < wiggleRepetition; i++) {
     for (int wiggleAngle : leafWiggleAngleAmount) {
       leafServo.write(wiggleAngle);
-      delay(150);
+      delay(250);
     }
   }
 }
-
-
-static void startDebug() {
-  Serial.begin(9600);
-  logDebug("starting debug");
-}
-
 
 static void logDebug(String text) {
   if (debugMode) {
