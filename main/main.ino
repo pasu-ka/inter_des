@@ -78,8 +78,9 @@ enum soundLevel {
 // configurations
 float soundLevelThresholdWakeup     = 1.45;
 float soundLevelThresholdScared     = 2.43;
-int leafWiggleAngleAmount[]   = {40, 180, 0};
-bool debugMode                = true;
+int leafWiggleAngleAmount[]         = {40, 180, 0};
+const int WAKEUP_G_FORCE              = 80;
+bool debugMode                      = true;
 
 // sample window width in mS (50 mS = 20Hz)
 const int SOUND_SAMPLE_WINDOW         = 50;
@@ -216,6 +217,7 @@ void goListening();
 void setupEyeLedMatrix();
 void playWithEyesDebug();
 void setupMpu();
+bool isMoving();
 
 
 // run setup code
@@ -239,12 +241,13 @@ void setup() {
 void loop() {
   if (debugMode) {
     //        playWithEyesDebug();
-//    debugMpu();
+    //    debugMpu();
     //    wiggleLeaf(1);
   }
-      listenThread(&pt1);
-      timeoutThread(&pt2);
-  //  moveThread(&pt3);
+        listenThread(&pt1);
+//logDebug("hello?!?!?!?");
+  timeoutThread(&pt2);
+  moveThread(&pt3);
 }
 
 
@@ -252,7 +255,9 @@ static void listenThread(struct pt *pt) {
   PT_BEGIN(pt);
   int soundLevel;
   while (1) {
+    logDebug("are we here?");
     PT_WAIT_UNTIL(pt, soundLevel = soundThresholdReached());
+    resetTimer();
     if (!stateChanging) {
       if (soundLevel == talking) {
         if (currentState == sleep) {
@@ -274,14 +279,15 @@ static void listenThread(struct pt *pt) {
 static void timeoutThread(struct pt *pt) {
   PT_BEGIN(pt);
   do {
+    logDebug("timerrrrrr");
     timer_set(&timer, STATE_CHANGE_TIMEOUT);
     PT_WAIT_UNTIL(pt, timer_expired(&timer));
-//    if (debugMode) {
-//      int tmp = millis();
-//      logDebug("timer: ", (tmp - timeoutDur) / 1000);
-//      timeoutDur = tmp;
-//    }
-//    logDebug("timer RINGIDINGI");
+        if (debugMode) {
+          int tmp = millis();
+          logDebug("timer: ", (tmp - timeoutDur) / 1000);
+          timeoutDur = tmp;
+        }
+    //    logDebug("timer RINGIDINGI");
     if (!stateChanging) {
       if (currentState == awake) {
         goSleep();
@@ -306,8 +312,14 @@ static int moveThread(struct pt *pt) {
   PT_BEGIN(pt);
   while (1) {
     // TODO move code here
-    // PT_WAIT_UNTIL(pt, function_returns_true());
-    // do_something();
+    logDebug("THERERERERERERERE?");
+    PT_WAIT_UNTIL(pt, isMoving());
+    resetTimer();
+    if (currentState == sleep) {
+      goAwakeFromSleep();
+    } else if (currentState == scared) {
+      goHappy();
+    }
   }
   PT_END(pt);
 }
@@ -324,14 +336,28 @@ void goSleep() {
   stateChanging = false;
 }
 
-
 void goAwakeFromSleep() {
   stateChanging = true;
-  logDebug("going to awake from sleep");
   currentState = awake;
-  if (debugMode) {
-    vibrate(VIBRA_STRONG, 20, true);
+  logDebug("going to awake from sleep");
+
+  int duration = 10;
+  int strength = VIBRA_MIDDLE;
+  for (int i = 0; i < duration; i++) {
+    analogWrite(vibraOnePinPwm, strength);
+    strength = strength - 10;
+    for (int wiggleAngle : leafWiggleAngleAmount) {
+      leafServo.write(wiggleAngle);
+      delay(150);
+    }
+    if (strength < 0) {
+      analogWrite(vibraOnePinPwm, 0);
+      //        leafServo.write(0);
+      break;
+    }
+    delay(100);
   }
+  analogWrite(vibraOnePinPwm, 0);
   resetTimer();
   stateChanging = false;
 }
@@ -371,6 +397,63 @@ void vibrate(int strength, int duration, bool decreaseOverTime) {
 
   }
   analogWrite(vibraOnePinPwm, 0);
+}
+
+// TODO make protothread
+static void wiggleLeaf(int wiggleRepetition) {
+  for (int i = 0; i < wiggleRepetition; i++) {
+    for (int wiggleAngle : leafWiggleAngleAmount) {
+      leafServo.write(wiggleAngle);
+      delay(250);
+    }
+  }
+}
+
+
+bool isMoving() {
+  // read raw accel/gyro measurements from device
+  //  accelgyro.getMotion6(&ax, &ay, &az, &gx, &gy, &gz);
+
+
+  //     int val = map(gz, -32768, +32767, 0, 255);
+
+  //    leafServo.write(val);
+  //    delay(1);
+
+  // these methods (and a few others) are also available
+//  accelgyro.getAcceleration(&ax, &ay, &az);
+    accelgyro.getRotation(&gx, &gy, &gz);
+
+#ifdef OUTPUT_READABLE_ACCELGYRO
+  // display tab-separated accel/gyro x/y/z values
+  //        Serial.print("a/g:\t");
+  //        Serial.print(ax); Serial.print("\t");
+  //        Serial.print(ay); Serial.print("\t");
+  //        Serial.print(az); Serial.print("\t");
+  //        Serial.println();
+  //  Serial.print(gx); Serial.print("\t");
+  //  Serial.print(gy); Serial.print("\t");
+  //  Serial.println(gz);
+
+  // map to angleº
+  int mappedX = map(gx, -32768, +32767, -180, 180);
+  int mappedY = map(gy, -32768, +32767, -180, 180);
+#endif
+
+#ifdef OUTPUT_BINARY_ACCELGYRO
+  //        Serial.write((uint8_t)(ax >> 8)); Serial.write((uint8_t)(ax & 0xFF));
+  //        Serial.write((uint8_t)(ay >> 8)); Serial.write((uint8_t)(ay & 0xFF));
+  //        Serial.write((uint8_t)(az >> 8)); Serial.write((uint8_t)(az & 0xFF));
+  //  Serial.write((uint8_t)(gx >> 8)); Serial.write((uint8_t)(gx & 0xFF));
+  //  Serial.write((uint8_t)(gy >> 8)); Serial.write((uint8_t)(gy & 0xFF));
+  //  Serial.write((uint8_t)(gz >> 8)); Serial.write((uint8_t)(gz & 0xFF));
+  //  Serial.println();
+#endif
+  //  logDebug("X angle: ", mappedX);
+  //  logDebug("Y angle: ", mappedY);
+  delay(100);
+//  logDebug("gggggggg: ", gx);
+  return (mappedX < -WAKEUP_G_FORCE || mappedX > WAKEUP_G_FORCE) || (mappedY < -WAKEUP_G_FORCE || mappedY > WAKEUP_G_FORCE);
 }
 
 
@@ -562,16 +645,6 @@ void setupMpu() {
   */
 }
 
-
-// TODO make protothread
-void wiggleLeaf(int wiggleRepetition) {
-  for (int i = 0; i < wiggleRepetition; i++) {
-    for (int wiggleAngle : leafWiggleAngleAmount) {
-      leafServo.write(wiggleAngle);
-      delay(250);
-    }
-  }
-}
 
 static void logDebug(String text) {
   if (debugMode) {
