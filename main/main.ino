@@ -55,7 +55,7 @@ int i2cClockPin     = A5;
 Servo leafServo;
 struct timer timer;
 // every protothread needs an own struct pt variable
-static struct pt pt1, pt2, pt3;
+static struct pt listenPt, timeoutPt, movePt;
 unsigned int soundSample;
 static unsigned long timeoutDur;
 int currentState;
@@ -230,24 +230,23 @@ void setup() {
   setupLeafServo();
   setupEyeLedMatrix();
   setupMpu();
+
   /* Initialize the protothread state variables with PT_INIT(). */
-  PT_INIT(&pt1);
-  PT_INIT(&pt2);
-  PT_INIT(&pt3);
+  PT_INIT(&listenPt);
+  PT_INIT(&timeoutPt);
+  PT_INIT(&movePt);
 }
 
 
 // run loop (forever)
 void loop() {
   if (debugMode) {
-    //        playWithEyesDebug();
-    //    debugMpu();
-    //    wiggleLeaf(1);
+    playWithEyesDebug();
+  } else {
+    listenThread(&listenPt);
+    timeoutThread(&timeoutPt);
+    moveThread(&movePt);
   }
-        listenThread(&pt1);
-//logDebug("hello?!?!?!?");
-  timeoutThread(&pt2);
-  moveThread(&pt3);
 }
 
 
@@ -255,7 +254,6 @@ static void listenThread(struct pt *pt) {
   PT_BEGIN(pt);
   int soundLevel;
   while (1) {
-    logDebug("are we here?");
     PT_WAIT_UNTIL(pt, soundLevel = soundThresholdReached());
     resetTimer();
     if (!stateChanging) {
@@ -279,40 +277,36 @@ static void listenThread(struct pt *pt) {
 static void timeoutThread(struct pt *pt) {
   PT_BEGIN(pt);
   do {
-    logDebug("timerrrrrr");
     timer_set(&timer, STATE_CHANGE_TIMEOUT);
     PT_WAIT_UNTIL(pt, timer_expired(&timer));
-        if (debugMode) {
-          int tmp = millis();
-          logDebug("timer: ", (tmp - timeoutDur) / 1000);
-          timeoutDur = tmp;
-        }
+    if (debugMode) {
+      int tmp = millis();
+      logDebug("timer: ", (tmp - timeoutDur) / 1000);
+      timeoutDur = tmp;
+    }
     //    logDebug("timer RINGIDINGI");
     if (!stateChanging) {
       if (currentState == awake) {
         goSleep();
         //      sleepNow();
       } else if (currentState == listening) {
-        currentState = awake;
         goAwakeFromListening();
       }
     }
   } while (1);
-  PT_END(pt); // TODO not necessary?
+  PT_END(pt);
 }
 
 
 static void resetTimer() {
   logDebug("reset timer");
-  PT_EXIT(&pt2);
+  PT_EXIT(&timeoutPt);
 }
 
 
 static int moveThread(struct pt *pt) {
   PT_BEGIN(pt);
   while (1) {
-    // TODO move code here
-    logDebug("THERERERERERERERE?");
     PT_WAIT_UNTIL(pt, isMoving());
     resetTimer();
     if (currentState == sleep) {
@@ -364,22 +358,34 @@ void goAwakeFromSleep() {
 
 
 void goAwakeFromListening() {
+  stateChanging = true;
+  currentState = awake;
   logDebug("going to awake from listening");
+  stateChanging = false;
 }
 
 
 void goHappy() {
+  stateChanging = true;
+  currentState = happy;
   logDebug("going to happy");
+  stateChanging = false;
 }
 
 
 void goScared() {
+  stateChanging = true;
+  currentState = scared;
   logDebug("going to scared");
+  stateChanging = false;
 }
 
 
 void goListening() {
+  stateChanging = true;
+  currentState = listening;
   logDebug("going to listening");
+  stateChanging = false;
 }
 
 
@@ -421,8 +427,8 @@ bool isMoving() {
   //    delay(1);
 
   // these methods (and a few others) are also available
-//  accelgyro.getAcceleration(&ax, &ay, &az);
-    accelgyro.getRotation(&gx, &gy, &gz);
+  //  accelgyro.getAcceleration(&ax, &ay, &az);
+  accelgyro.getRotation(&gx, &gy, &gz);
 
 #ifdef OUTPUT_READABLE_ACCELGYRO
   // display tab-separated accel/gyro x/y/z values
@@ -452,7 +458,7 @@ bool isMoving() {
   //  logDebug("X angle: ", mappedX);
   //  logDebug("Y angle: ", mappedY);
   delay(100);
-//  logDebug("gggggggg: ", gx);
+  //  logDebug("gggggggg: ", gx);
   return (mappedX < -WAKEUP_G_FORCE || mappedX > WAKEUP_G_FORCE) || (mappedY < -WAKEUP_G_FORCE || mappedY > WAKEUP_G_FORCE);
 }
 
