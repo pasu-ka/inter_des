@@ -186,7 +186,26 @@ void loop() {
   if (debugMode) {
     //    playWithEyesDebug();
     //    wiggleLeaf(1);
-//    delay(1000);
+//    eyeMatrix[0].clear();
+//
+//      eyeMatrix[0].drawBitmap(0, 0, blinkImg2[0], 8, 8, LED_ON);
+//
+//      eyeMatrix[0].writeDisplay();
+//    delay(5000);
+//      eyeMatrix[0].clear();
+//
+//      eyeMatrix[0].drawBitmap(0, 0, blinkImg2[3], 8, 8, LED_ON);
+//
+//      eyeMatrix[0].writeDisplay();
+//      
+//      analogWrite(vibraOnePinPwm, 220);
+//      analogWrite(vibraTwoPinPwm, 220);
+//      leafServo.write(90);
+//      delay(1500);
+//      analogWrite(vibraOnePinPwm, 0);
+//      analogWrite(vibraTwoPinPwm, 0);
+//      leafServo.write(45);
+      
   }
   listenThread(&listenPt);
   timeoutThread(&timeoutPt);
@@ -244,6 +263,8 @@ static void timeoutThread(struct pt *pt) {
       } else if (currentState == listening) {
         goAwakeFromListening();
       } else if (currentState == scared) {
+        goAwakeFromListening();
+      } else if (currentState == happy) {
         goAwakeFromListening();
       }
     }
@@ -442,6 +463,11 @@ void goAwakeFromListening() {
 void goHappy() {
   stateChanging = true;
   currentState = happy;
+  eyeMatrix[0].clear();
+
+      eyeMatrix[0].drawBitmap(0, 0, smileImg[6], 8, 8, LED_ON);
+
+      eyeMatrix[0].writeDisplay();
   logDebug("going to happy");
   stateChanging = false;
 }
