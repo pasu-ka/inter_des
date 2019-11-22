@@ -63,16 +63,17 @@ int i2cClockPin     = A5;
 
 // configurations
 
-bool debugMode                          = false;
+bool debugMode                          = true;
 // max lvl = 1024
-double soundLevelThresholdWakeup  = 2.0;
-double soundLevelThresholdScared  = 4.4;
+static bool isActive = false;
+double soundLevelThresholdWakeup  = 2.2;
+double soundLevelThresholdScared  = 2.71;
 int leafWiggleAngleAmount[]             = {15, 90};
-const int WAKEUP_G_FORCE                = 10;
+const int WAKEUP_G_FORCE                = 25;
 // sample window width in mS (50 mS = 20Hz)
 const int SOUND_SAMPLE_WINDOW           = 50;
-const static int STATE_CHANGE_TIMEOUT   = 5000;
-const static int ACTIVE_STATE_TIMEOUT   = 2000;
+const static int STATE_CHANGE_TIMEOUT   = 10000;
+const static int ACTIVE_STATE_TIMEOUT   = 3000;
 const int VIBRA_STRONG                  = 250;
 const int VIBRA_MIDDLE                  = 160;
 const int VIBRA_LOW                     = 80;
@@ -153,7 +154,7 @@ void setupEyeLedMatrix();
 void playWithEyesDebug();
 void playWithEyesDebug2();
 void setupMpu();
-bool isMoving();
+bool movingThresholdReacher();
 void setupI2C();
 
 
@@ -170,8 +171,8 @@ void setup() {
     digitalWrite(leafLedPinPwm, HIGH);
   }
   //  goSleep();
-  //  currentState = sleep;
-  goAwakeFromSleep();
+    currentState = sleep;
+//  goAwakeFromSleep();
 
   /* Initialize the protothread state variables with PT_INIT(). */
   PT_INIT(&listenPt);
@@ -194,7 +195,7 @@ void loop() {
 //  Serial.println(F("Free memory: "));
 //  Serial.println("#################");
 //  logDebug("alive");
-//  activeThread(&activePt);
+  activeThread(&activePt);
 
 }
 
@@ -204,12 +205,12 @@ static void listenThread(struct pt *pt) {
   int soundLevel;
   while (1) {
     PT_WAIT_UNTIL(pt, soundLevel = soundThresholdReached());
-    resetTimer();
+    if(!isActive) {
+      resetTimer();
+    }
     if (!stateChanging) {
       if (soundLevel == talking) {
         if (currentState == sleep) {
-          // TODO broken fix.....
-          logDebug("WAKE UP", soundLevel);
           goAwakeFromSleep();
         } else if (currentState == awake) {
           goListening();
@@ -232,15 +233,17 @@ static void timeoutThread(struct pt *pt) {
     PT_WAIT_UNTIL(pt, timer_expired(&timeoutTimer));
     if (debugMode) {
       int tmp = millis();
-      logDebug("timeoutTimer: ", (tmp - timeoutDur) / 1000);
+//      logDebug("timeoutTimer: ", (tmp - timeoutDur) / 1000);
       timeoutDur = tmp;
     }
-    //    logDebug("timeoutTimer RINGIDINGI");
+        logDebug("timeoutTimer RINGIDINGI");
     if (!stateChanging) {
       if (currentState == awake) {
         goSleep();
         //      sleepNow();
       } else if (currentState == listening) {
+        goAwakeFromListening();
+      } else if (currentState == scared) {
         goAwakeFromListening();
       }
     }
@@ -255,14 +258,12 @@ static void activeThread(struct pt *pt) {
     PT_WAIT_UNTIL(pt, timer_expired(&activeTimer));
     if (debugMode) {
       int tmp = millis();
-      logDebug("activeTimer: ", (tmp - activeDur) / 1000);
+//      logDebug("activeTimer: ", (tmp - activeDur) / 1000);
       activeDur = tmp;
     }
+    isActive = true;
     if (!stateChanging) {
       if (currentState == awake) {
-        // TODO
-        // do something
-      } else if (currentState == listening) {
         for (int i = 0; i < sizeof(blinkImg) / sizeof(*blinkImg); i++) {
           eyeMatrix[0].clear();
 
@@ -273,19 +274,69 @@ static void activeThread(struct pt *pt) {
           if (i % 4 == 0) {
             for (int wiggleAngle : leafWiggleAngleAmount) {
               leafServo.write(wiggleAngle);
-              delay(100);
+              delay(50);
+            }
+          }
+        }
+        leafServo.write(60);
+      } else if (currentState == listening) {
+        for (int i = 0; i < sizeof(smileImg) / sizeof(*smileImg); i++) {
+          eyeMatrix[0].clear();
+
+          eyeMatrix[0].drawBitmap(0, 0, blinkImg[i], 8, 8, LED_ON);
+
+          eyeMatrix[0].writeDisplay();
+
+          if (i % 4 == 0) {
+            for (int wiggleAngle : leafWiggleAngleAmount) {
+              leafServo.write(wiggleAngle);
+              delay(50);
+            }
+          }
+        }
+        for (int i = sizeof(smileImg) / sizeof(*smileImg); i >= 0; i--) {
+          eyeMatrix[0].clear();
+
+          eyeMatrix[0].drawBitmap(0, 0, smileImg[i], 8, 8, LED_ON);
+
+          eyeMatrix[0].writeDisplay();
+
+          if (i % 6 == 0) {
+            for (int wiggleAngle : leafWiggleAngleAmount) {
+              leafServo.write(wiggleAngle);
+              delay(50);
+            }
+          }
+        }
+      } else if (currentState == scared) {
+        logDebug("scared little shit");
+        
+//        analogWrite(vibraOnePinPwm, 100);
+//        analogWrite(vibraTwoPinPwm, 100);
+        for (int i = 0; i < sizeof(surprisedImg) / sizeof(*surprisedImg); i++) {
+          eyeMatrix[0].clear();
+
+          eyeMatrix[0].drawBitmap(0, 0, surprisedImg[i], 8, 8, LED_ON);
+
+          eyeMatrix[0].writeDisplay();
+
+          if (i % 2 == 0) {
+            for (int wiggleAngle : leafWiggleAngleAmount) {
+              leafServo.write(wiggleAngle);
+              delay(50);
             }
           }
         }
       }
     }
+    isActive = false;
   } while (1);
   PT_END(pt);
 }
 
 
 static void resetTimer() {
-//  logDebug("reset timeoutTimer");
+  logDebug("reset timeoutTimer");
   PT_EXIT(&timeoutPt);
   PT_EXIT(&activePt);
 }
@@ -294,8 +345,8 @@ static void resetTimer() {
 static int moveThread(struct pt *pt) {
   PT_BEGIN(pt);
   while (1) {
-    PT_WAIT_UNTIL(pt, isMoving());
-    resetTimer();
+    PT_WAIT_UNTIL(pt, movingThresholdReacher());
+    
     if (currentState == sleep) {
       goAwakeFromSleep();
     } else if (currentState == scared) {
@@ -329,6 +380,7 @@ void goSleep() {
     leafPos = leafPos - 8;
     vibra = vibra - 20;
     delay(300);
+    logDebug("are we here?!?!");
   }
   leafServo.write(15);
   analogWrite(vibraOnePinPwm, 0);
@@ -370,6 +422,7 @@ void goAwakeFromSleep() {
       break;
     }
   }
+  leafServo.write(60);
   analogWrite(vibraOnePinPwm, 0);
   analogWrite(vibraTwoPinPwm, 0);
   resetTimer();
@@ -380,6 +433,7 @@ void goAwakeFromSleep() {
 void goAwakeFromListening() {
   stateChanging = true;
   currentState = awake;
+  resetTimer();
   logDebug("going to awake from listening");
   stateChanging = false;
 }
@@ -398,7 +452,7 @@ void goScared() {
 
   currentState = scared;
   logDebug("going to scared");
-  int vibra = 200;
+  int vibra = 250;
   for (int i = 0; i < (sizeof(surprisedImg) / sizeof(*surprisedImg)); i++) {
     eyeMatrix[0].clear();
 
@@ -407,10 +461,12 @@ void goScared() {
     eyeMatrix[0].writeDisplay();
     analogWrite(vibraOnePinPwm, vibra);
     analogWrite(vibraTwoPinPwm, vibra);
-    vibra = vibra - 70;
-    delay(500);
+    vibra = vibra - 50;
+    delay(100);
   }
   resetTimer();
+  analogWrite(vibraOnePinPwm, 0);
+  analogWrite(vibraTwoPinPwm, 0);
 
   stateChanging = false;
 }
@@ -453,7 +509,7 @@ static void wiggleLeaf(int wiggleRepetition) {
 }
 
 
-bool isMoving() {
+bool movingThresholdReacher() {
   // read raw accel/gyro measurements from device
   //  accelgyro.getMotion6(&ax, &ay, &az, &gx, &gy, &gz);
 
@@ -465,9 +521,9 @@ bool isMoving() {
 
   // these methods (and a few others) are also available
   //  accelgyro.getAcceleration(&ax, &ay, &az);
-  logDebug("fuck");
+//  logDebug("fuck");
   accelgyro.getRotation(&gx, &gy, &gz);
-  logDebug("this");
+//  logDebug("this");
 
 #ifdef OUTPUT_READABLE_ACCELGYRO
   // display tab-separated accel/gyro x/y/z values
@@ -530,7 +586,7 @@ int soundThresholdReached() {
 //  mean = (signalMax + signalMin) / 2;
     double mean = (peakToPeak * 5.0) / 1024;  // convert to volts
   //    logDebug("bleb",volts);
-  logDebug("sound level: ", mean);
+//  logDebug("sound level: ", mean);
   if (mean >= soundLevelThresholdScared) {
     return bang;
   } else if (mean >= soundLevelThresholdWakeup) {
