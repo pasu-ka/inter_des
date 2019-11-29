@@ -86,26 +86,26 @@ void loop() {
   if (debugMode) {
     //    playWithEyesDebug();
     //    wiggleLeaf(1);
-//    eyeMatrix[0].clear();
-//
-//      eyeMatrix[0].drawBitmap(0, 0, blinkImg2[0], 8, 8, LED_ON);
-//
-//      eyeMatrix[0].writeDisplay();
-//    delay(5000);
-//      eyeMatrix[0].clear();
-//
-//      eyeMatrix[0].drawBitmap(0, 0, blinkImg2[3], 8, 8, LED_ON);
-//
-//      eyeMatrix[0].writeDisplay();
-//      
-//      analogWrite(vibraOnePinPwm, 220);
-//      analogWrite(vibraTwoPinPwm, 220);
-//      leafServo.write(90);
-//      delay(1500);
-//      analogWrite(vibraOnePinPwm, 0);
-//      analogWrite(vibraTwoPinPwm, 0);
-//      leafServo.write(45);
-      
+    //    eyeMatrix[0].clear();
+    //
+    //      eyeMatrix[0].drawBitmap(0, 0, blinkImg2[0], 8, 8, LED_ON);
+    //
+    //      eyeMatrix[0].writeDisplay();
+    //    delay(5000);
+    //      eyeMatrix[0].clear();
+    //
+    //      eyeMatrix[0].drawBitmap(0, 0, blinkImg2[3], 8, 8, LED_ON);
+    //
+    //      eyeMatrix[0].writeDisplay();
+    //
+    //      analogWrite(vibraOnePinPwm, 220);
+    //      analogWrite(vibraTwoPinPwm, 220);
+    //      leafServo.write(90);
+    //      delay(1500);
+    //      analogWrite(vibraOnePinPwm, 0);
+    //      analogWrite(vibraTwoPinPwm, 0);
+    //      leafServo.write(45);
+
   }
   listenThread(&listenPt);
   timeoutThread(&timeoutPt);
@@ -120,7 +120,7 @@ static void listenThread(struct pt *pt) {
   int soundLevel;
   while (1) {
     PT_WAIT_UNTIL(pt, soundLevel = soundThresholdReached());
-    if(!isActive) {
+    if (!isActive) {
       resetTimer();
     }
     if (!stateChanging) {
@@ -148,10 +148,10 @@ static void timeoutThread(struct pt *pt) {
     PT_WAIT_UNTIL(pt, timer_expired(&timeoutTimer));
     if (debugMode) {
       int tmp = millis();
-//      logDebug("timeoutTimer: ", (tmp - timeoutDur) / 1000);
+      //      logDebug("timeoutTimer: ", (tmp - timeoutDur) / 1000);
       timeoutDur = tmp;
     }
-        logDebug("timeoutTimer RINGIDINGI");
+    logDebug("timeoutTimer RINGIDINGI");
     if (!stateChanging) {
       if (currentState == awake) {
         goSleep();
@@ -175,7 +175,7 @@ static void activeThread(struct pt *pt) {
     PT_WAIT_UNTIL(pt, timer_expired(&activeTimer));
     if (debugMode) {
       int tmp = millis();
-//      logDebug("activeTimer: ", (tmp - activeDur) / 1000);
+      //      logDebug("activeTimer: ", (tmp - activeDur) / 1000);
       activeDur = tmp;
     }
     isActive = true;
@@ -195,6 +195,18 @@ static void activeThread(struct pt *pt) {
             }
           }
         }
+        for (int i = 60; i > 40; i--) {
+          leafServo.write(i);
+          delay(10);
+        }
+        for (int i = 40; i <= 75; i++) {
+          leafServo.write(i);
+          delay(10);
+        }
+        for (int i = 75; i >= 60; i--) {
+          leafServo.write(i);
+          delay(10);
+        }
         leafServo.write(60);
       } else if (currentState == listening) {
         for (int i = 0; i < sizeof(smileImg) / sizeof(*smileImg); i++) {
@@ -204,10 +216,10 @@ static void activeThread(struct pt *pt) {
 
           eyeMatrix[0].writeDisplay();
 
-          if (i % 4 == 0) {
+          if (i % 6 == 0) {
             for (int wiggleAngle : leafWiggleAngleAmount) {
               leafServo.write(wiggleAngle);
-              delay(50);
+              delay(0);
             }
           }
         }
@@ -225,11 +237,19 @@ static void activeThread(struct pt *pt) {
             }
           }
         }
+        for (int i = 90; i > 15; i--) {
+          leafServo.write(i);
+          delay(20);
+        }
+        for (int i = 15; i <= 90; i++) {
+          leafServo.write(i);
+          delay(20);
+        }
       } else if (currentState == scared) {
         logDebug("scared little shit");
-        
-//        analogWrite(vibraOnePinPwm, 100);
-//        analogWrite(vibraTwoPinPwm, 100);
+
+        //        analogWrite(vibraOnePinPwm, 100);
+        //        analogWrite(vibraTwoPinPwm, 100);
         for (int i = 0; i < sizeof(surprisedImg) / sizeof(*surprisedImg); i++) {
           eyeMatrix[0].clear();
 
@@ -244,6 +264,8 @@ static void activeThread(struct pt *pt) {
             }
           }
         }
+      } else if (currentState == happy) {
+        goAwakeFromListening();
       }
     }
     isActive = false;
@@ -263,7 +285,7 @@ static int moveThread(struct pt *pt) {
   PT_BEGIN(pt);
   while (1) {
     PT_WAIT_UNTIL(pt, movingThresholdReacher());
-    
+
     if (currentState == sleep) {
       goAwakeFromSleep();
     } else if (currentState == scared) {
@@ -285,7 +307,7 @@ void goSleep() {
     eyeMatrix[0].clear();
 
     eyeMatrix[0].drawBitmap(0, 0, sleepImg[i], 8, 8, LED_ON);
-    
+
     eyeMatrix[0].setBrightness(brightness);
     eyeMatrix[0].writeDisplay();
     analogWrite(vibraOnePinPwm, vibra);
@@ -359,11 +381,31 @@ void goAwakeFromListening() {
 void goHappy() {
   stateChanging = true;
   currentState = happy;
+  int vibraPower = 250;
+  analogWrite(vibraOnePinPwm, vibraPower);
+  analogWrite(vibraTwoPinPwm, vibraPower);
   eyeMatrix[0].clear();
 
-      eyeMatrix[0].drawBitmap(0, 0, smileImg[6], 8, 8, LED_ON);
+  eyeMatrix[0].drawBitmap(0, 0, smileImg[6], 8, 8, LED_ON);
 
-      eyeMatrix[0].writeDisplay();
+  eyeMatrix[0].writeDisplay();
+
+  for (int wiggleAngle : leafWiggleAngleAmount) {
+    vibraPower = vibraPower - 50;
+    analogWrite(vibraOnePinPwm, vibraPower);
+    analogWrite(vibraTwoPinPwm, vibraPower);
+    leafServo.write(wiggleAngle);
+    delay(100);
+  }
+  for (int wiggleAngle : leafWiggleAngleAmount) {
+    vibraPower = vibraPower - 50;
+    analogWrite(vibraOnePinPwm, vibraPower);
+    analogWrite(vibraTwoPinPwm, vibraPower);
+    leafServo.write(wiggleAngle);
+    delay(50);
+  }
+  analogWrite(vibraOnePinPwm, 0);
+  analogWrite(vibraTwoPinPwm, 0);
   logDebug("going to happy");
   stateChanging = false;
 }
@@ -383,7 +425,7 @@ void goScared() {
     eyeMatrix[0].writeDisplay();
     analogWrite(vibraOnePinPwm, vibra);
     analogWrite(vibraTwoPinPwm, vibra);
-    vibra = vibra - 50;
+    vibra = vibra - 30;
     delay(100);
   }
   resetTimer();
@@ -443,9 +485,9 @@ bool movingThresholdReacher() {
 
   // these methods (and a few others) are also available
   //  accelgyro.getAcceleration(&ax, &ay, &az);
-//  logDebug("fuck");
+  //  logDebug("fuck");
   accelgyro.getRotation(&gx, &gy, &gz);
-//  logDebug("this");
+  //  logDebug("this");
 
 #ifdef OUTPUT_READABLE_ACCELGYRO
   // display tab-separated accel/gyro x/y/z values
@@ -474,7 +516,7 @@ bool movingThresholdReacher() {
 #endif
   //  logDebug("X angle: ", mappedX);
   //  logDebug("Y angle: ", mappedY);
-//  delay(100);
+  //  delay(100);
   //  logDebug("gggggggg: ", gx);
   return (mappedX < -WAKEUP_G_FORCE || mappedX > WAKEUP_G_FORCE) || (mappedY < -WAKEUP_G_FORCE || mappedY > WAKEUP_G_FORCE);
 }
@@ -483,7 +525,7 @@ bool movingThresholdReacher() {
 int soundThresholdReached() {
   unsigned long startMillis = millis(); // Start of sample window
   unsigned int peakToPeak = 0;  // peak-to-peak level
-//  unsigned int mean = 0;  // average level
+  //  unsigned int mean = 0;  // average level
 
   unsigned int signalMax = 0;
   unsigned int signalMin = 1024;
@@ -504,11 +546,11 @@ int soundThresholdReached() {
       }
     }
   }
-    peakToPeak = signalMax - signalMin;  // max - min = peak-peak amplitude
-//  mean = (signalMax + signalMin) / 2;
-    double mean = (peakToPeak * 5.0) / 1024;  // convert to volts
+  peakToPeak = signalMax - signalMin;  // max - min = peak-peak amplitude
+  //  mean = (signalMax + signalMin) / 2;
+  double mean = (peakToPeak * 5.0) / 1024;  // convert to volts
   //    logDebug("bleb",volts);
-//  logDebug("sound level: ", mean);
+  //  logDebug("sound level: ", mean);
   if (mean >= soundLevelThresholdScared) {
     return bang;
   } else if (mean >= soundLevelThresholdWakeup) {
