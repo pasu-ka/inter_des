@@ -20,37 +20,12 @@
   https://github.com/pasu-ka/inter_des
 */
 
-
-// include libraries
-
-#include <Adafruit_LEDBackpack.h>
-#include <Adafruit_GFX.h>
-#include <Arduino.h>
-// #include <Wire.h>
-#include <Servo.h>
-// #include <clock-arch.h>
-// #include <lc.h>
-// #include <lc-addrlabels.h>
-// #include <pt-sem.h>
-#include <timer.h>
-// #include <clock.h>
-// #include <lc-switch.h>
-// Multithreading capabilities for Arduino
-#include <pt.h>
-// MPU Gyro
-// I2Cdev and MPU6050 must be installed as libraries, or else the .cpp/.h files
-// for both classes must be in the include path of your project
-#include "I2Cdev.h"
-#include "MPU6050.h"
-// Arduino Wire library is required if I2Cdev I2CDEV_ARDUINO_WIRE implementation
-// is used in I2Cdev.h
-#if I2CDEV_IMPLEMENTATION == I2CDEV_ARDUINO_WIRE
-#include "Wire.h"
-#endif
+#include "includes.h"
+#include "declarations.h"
 #include "definition.h"
 
 
-// pin declaration
+// pin mapping
 
 int gyroPinDigital  = 1;
 int leafServoPinPwm = 3;
@@ -61,13 +36,14 @@ int micPinAnalogue  = A0;
 int i2cDataPin      = A4;
 int i2cClockPin     = A5;
 
+
 // configurations
 
 bool debugMode                          = true;
 // max lvl = 1024
 static bool isActive = false;
-double soundLevelThresholdWakeup  = 2.2;
-double soundLevelThresholdScared  = 2.71;
+double soundLevelThresholdWakeup        = 2.2;
+double soundLevelThresholdScared        = 2.71;
 int leafWiggleAngleAmount[]             = {15, 90};
 const int WAKEUP_G_FORCE                = 25;
 // sample window width in mS (50 mS = 20Hz)
@@ -84,80 +60,6 @@ newX = 3, newY = 3,   // Next eye position
 dX   = 0, dY   = 0;   // Distance from prior to new position
 
 
-// initialize globals
-
-Servo leafServo;
-struct timer timeoutTimer, activeTimer;
-// every protothread needs an own struct pt variable
-static struct pt listenPt, timeoutPt, movePt, activePt;
-unsigned int soundSample;
-static unsigned long timeoutDur;
-static unsigned long activeDur;
-int currentState;
-enum states {
-  sleep,
-  awake,
-  happy,
-  scared,
-  listening
-};
-static bool stateChanging = false;
-enum soundLevel {
-  quiet,
-  talking,
-  bang
-};
-
-
-// led matrix vars
-
-#define MATRIX_EYES 2
-Adafruit_8x8matrix eyeMatrix[2] = { // Array of Adafruit_8x8matrix objects
-  Adafruit_8x8matrix(),
-  Adafruit_8x8matrix()
-};
-
-// uint8_t
-// blinkIndex[] = { 1, 2, 3, 4, 3, 2, 1 }, // Blink bitmap sequence
-//                blinkCountdown = 100, // Countdown to next blink (in frames)
-//                gazeCountdown  =  75, // Countdown to next eye movement
-//                gazeFrames     =  50, // Duration of eye movement (smaller = faster)
-//                mouthPos       =   0, // Current image number for mouth
-//                mouthCountdown =  10; // Countdown to next mouth change
-
-
-// class default I2C address is 0x68
-// specific I2C addresses may be passed as a parameter here
-// AD0 low = 0x68 (default for InvenSense evaluation board)
-// AD0 high = 0x69
-MPU6050 accelgyro;
-int16_t ax, ay, az;
-int16_t gx, gy, gz;
-#define OUTPUT_READABLE_ACCELGYRO
-
-
-// function declaration, because dark side of C
-
-int soundThresholdReached();
-void logDebug(String, double);
-void logDebug(String);
-void startDebug();
-void setupLeafServo();
-void goAwakeFromSleep();
-void goSleep();
-void goAwakeFromSleep();
-void goAwakeFromListening();
-void goHappy();
-void goScared();
-void goListening();
-void setupEyeLedMatrix();
-void playWithEyesDebug();
-void playWithEyesDebug2();
-void setupMpu();
-bool movingThresholdReacher();
-void setupI2C();
-
-
 void setup() {
   Serial.begin(9600);
 
@@ -170,9 +72,7 @@ void setup() {
     pinMode(leafLedPinPwm, OUTPUT);
     digitalWrite(leafLedPinPwm, HIGH);
   }
-  //  goSleep();
-    currentState = sleep;
-//  goAwakeFromSleep();
+  currentState = sleep;
 
   /* Initialize the protothread state variables with PT_INIT(). */
   PT_INIT(&listenPt);
@@ -210,10 +110,6 @@ void loop() {
   listenThread(&listenPt);
   timeoutThread(&timeoutPt);
   moveThread(&movePt);
-//  Serial.println("#################");
-//  Serial.println(F("Free memory: "));
-//  Serial.println("#################");
-//  logDebug("alive");
   activeThread(&activePt);
 
 }
@@ -234,7 +130,7 @@ static void listenThread(struct pt *pt) {
         } else if (currentState == awake) {
           goListening();
         } else if (currentState == listening) {
-          resetTimer();
+          resetTimer(); // TODO don't reset active timer here
         }
       } else if (soundLevel == bang) {
         goScared();
@@ -398,7 +294,7 @@ void goSleep() {
       leafServo.write(leafPos);
     }
     brightness = brightness - 2;
-    leafPos = leafPos - 8;
+    leafPos = leafPos - 6;
     vibra = vibra - 20;
     delay(300);
     logDebug("are we here?!?!");
@@ -631,7 +527,7 @@ void setupLeafServo() {
 
 void setupEyeLedMatrix() {
   // Seed random number generator from an unused analog input:
-  //  randomSeed(analogRead(A1)); not used anymore TODO maybe future
+  // randomSeed(analogRead(A1)); not used anymore TODO maybe future
 
   // Initialize each matrix object:
   for (uint8_t i = 0; i < 4; i++) {
