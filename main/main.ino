@@ -39,7 +39,7 @@ int i2cClockPin     = A5;
 
 // configurations
 
-bool debugMode                          = true;
+bool debugMode                          = false;
 // max lvl = 1024
 static bool isActive = false;
 double soundLevelThresholdWakeup        = 2.2;
@@ -121,7 +121,7 @@ static void listenThread(struct pt *pt) {
   while (1) {
     PT_WAIT_UNTIL(pt, soundLevel = soundThresholdReached());
     if (!isActive) {
-      resetTimer();
+      resetTimers();
     }
     if (!stateChanging) {
       if (soundLevel == talking) {
@@ -130,7 +130,7 @@ static void listenThread(struct pt *pt) {
         } else if (currentState == awake) {
           goListening();
         } else if (currentState == listening) {
-          resetTimer(); // TODO don't reset active timer here
+          resetTimeoutTimer(); // TODO don't reset active timer here
         }
       } else if (soundLevel == bang) {
         goScared();
@@ -219,7 +219,7 @@ static void activeThread(struct pt *pt) {
           if (i % 6 == 0) {
             for (int wiggleAngle : leafWiggleAngleAmount) {
               leafServo.write(wiggleAngle);
-              delay(0);
+              delay(100);
             }
           }
         }
@@ -233,7 +233,7 @@ static void activeThread(struct pt *pt) {
           if (i % 6 == 0) {
             for (int wiggleAngle : leafWiggleAngleAmount) {
               leafServo.write(wiggleAngle);
-              delay(50);
+              delay(100);
             }
           }
         }
@@ -274,10 +274,15 @@ static void activeThread(struct pt *pt) {
 }
 
 
-static void resetTimer() {
-  logDebug("reset timeoutTimer");
+static void resetTimers() {
+  logDebug("reset timers");
   PT_EXIT(&timeoutPt);
   PT_EXIT(&activePt);
+}
+
+static void resetTimeoutTimer() {
+  logDebug("reset timeoutTimer");
+  PT_EXIT(&timeoutPt);
 }
 
 
@@ -290,6 +295,8 @@ static int moveThread(struct pt *pt) {
       goAwakeFromSleep();
     } else if (currentState == scared) {
       goHappy();
+    } else if (currentState == awake) {
+      resetTimeoutTimer();
     }
   }
   PT_END(pt);
@@ -319,12 +326,11 @@ void goSleep() {
     leafPos = leafPos - 6;
     vibra = vibra - 20;
     delay(300);
-    logDebug("are we here?!?!");
   }
   leafServo.write(15);
   analogWrite(vibraOnePinPwm, 0);
   analogWrite(vibraTwoPinPwm, 0);
-  resetTimer();
+  resetTimers();
   stateChanging = false;
   logDebug("finished");
 }
@@ -364,7 +370,7 @@ void goAwakeFromSleep() {
   leafServo.write(60);
   analogWrite(vibraOnePinPwm, 0);
   analogWrite(vibraTwoPinPwm, 0);
-  resetTimer();
+  resetTimers();
   stateChanging = false;
 }
 
@@ -372,7 +378,7 @@ void goAwakeFromSleep() {
 void goAwakeFromListening() {
   stateChanging = true;
   currentState = awake;
-  resetTimer();
+  resetTimers();
   logDebug("going to awake from listening");
   stateChanging = false;
 }
@@ -428,7 +434,7 @@ void goScared() {
     vibra = vibra - 30;
     delay(100);
   }
-  resetTimer();
+  resetTimers();
   analogWrite(vibraOnePinPwm, 0);
   analogWrite(vibraTwoPinPwm, 0);
 
