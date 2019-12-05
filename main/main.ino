@@ -20,44 +20,27 @@
   https://github.com/pasu-ka/inter_des
 */
 
-#include "includes.h"
+
+#include <Arduino.h>
+#include <Adafruit_LEDBackpack.h>
+#include <Adafruit_GFX.h>
+#include <Servo.h>
+#include <timer.h>
+// Multithreading capabilities for Arduino
+#include <pt.h>
+// MPU Gyro
+// I2Cdev and MPU6050 must be installed as libraries, or else the .cpp/.h files
+// for both classes must be in the include path of your project
+#include "I2Cdev.h"
+#include "MPU6050.h"
+// Arduino Wire library is required if I2Cdev I2CDEV_ARDUINO_WIRE implementation
+// is used in I2Cdev.h
+#if I2CDEV_IMPLEMENTATION == I2CDEV_ARDUINO_WIRE
+#include "Wire.h"
+#endif
+
 #include "declarations.h"
 #include "definition.h"
-
-
-// pin mapping
-
-int gyroPinDigital  = 1;
-int leafServoPinPwm = 3;
-int vibraOnePinPwm  = 5;
-int vibraTwoPinPwm  = 6;
-int leafLedPinPwm   = 9;
-int micPinAnalogue  = A0;
-int i2cDataPin      = A4;
-int i2cClockPin     = A5;
-
-
-// configurations
-
-bool debugMode                          = false;
-// max lvl = 1024
-static bool isActive = false;
-double soundLevelThresholdWakeup        = 2.2;
-double soundLevelThresholdScared        = 2.71;
-int leafWiggleAngleAmount[]             = {15, 90};
-const int WAKEUP_G_FORCE                = 25;
-// sample window width in mS (50 mS = 20Hz)
-const int SOUND_SAMPLE_WINDOW           = 50;
-const static int STATE_CHANGE_TIMEOUT   = 10000;
-const static int ACTIVE_STATE_TIMEOUT   = 3000;
-const int VIBRA_STRONG                  = 250;
-const int VIBRA_MIDDLE                  = 160;
-const int VIBRA_LOW                     = 80;
-static const uint8_t eyeMatrixAddr[]    = {0x70, 0x71};
-int8_t
-eyeX = 3, eyeY = 3,   // Current eye position
-newX = 3, newY = 3,   // Next eye position
-dX   = 0, dY   = 0;   // Distance from prior to new position
 
 
 void setup() {
@@ -84,27 +67,6 @@ void setup() {
 
 void loop() {
   if (debugMode) {
-    //    playWithEyesDebug();
-    //    wiggleLeaf(1);
-    //    eyeMatrix[0].clear();
-    //
-    //      eyeMatrix[0].drawBitmap(0, 0, blinkImg2[0], 8, 8, LED_ON);
-    //
-    //      eyeMatrix[0].writeDisplay();
-    //    delay(5000);
-    //      eyeMatrix[0].clear();
-    //
-    //      eyeMatrix[0].drawBitmap(0, 0, blinkImg2[3], 8, 8, LED_ON);
-    //
-    //      eyeMatrix[0].writeDisplay();
-    //
-    //      analogWrite(vibraOnePinPwm, 220);
-    //      analogWrite(vibraTwoPinPwm, 220);
-    //      leafServo.write(90);
-    //      delay(1500);
-    //      analogWrite(vibraOnePinPwm, 0);
-    //      analogWrite(vibraTwoPinPwm, 0);
-    //      leafServo.write(45);
 
   }
   listenThread(&listenPt);
@@ -155,7 +117,6 @@ static void timeoutThread(struct pt *pt) {
     if (!stateChanging) {
       if (currentState == awake) {
         goSleep();
-        //      sleepNow();
       } else if (currentState == listening) {
         goAwakeFromListening();
       } else if (currentState == scared) {
@@ -181,89 +142,11 @@ static void activeThread(struct pt *pt) {
     isActive = true;
     if (!stateChanging) {
       if (currentState == awake) {
-        for (int i = 0; i < sizeof(blinkImg) / sizeof(*blinkImg); i++) {
-          eyeMatrix[0].clear();
-
-          eyeMatrix[0].drawBitmap(0, 0, blinkImg[i], 8, 8, LED_ON);
-
-          eyeMatrix[0].writeDisplay();
-
-          if (i % 4 == 0) {
-            for (int wiggleAngle : leafWiggleAngleAmount) {
-              leafServo.write(wiggleAngle);
-              delay(50);
-            }
-          }
-        }
-        for (int i = 60; i > 40; i--) {
-          leafServo.write(i);
-          delay(10);
-        }
-        for (int i = 40; i <= 75; i++) {
-          leafServo.write(i);
-          delay(10);
-        }
-        for (int i = 75; i >= 60; i--) {
-          leafServo.write(i);
-          delay(10);
-        }
-        leafServo.write(60);
+        activeAwake();
       } else if (currentState == listening) {
-        for (int i = 0; i < sizeof(smileImg) / sizeof(*smileImg); i++) {
-          eyeMatrix[0].clear();
-
-          eyeMatrix[0].drawBitmap(0, 0, blinkImg[i], 8, 8, LED_ON);
-
-          eyeMatrix[0].writeDisplay();
-
-          if (i % 6 == 0) {
-            for (int wiggleAngle : leafWiggleAngleAmount) {
-              leafServo.write(wiggleAngle);
-              delay(100);
-            }
-          }
-        }
-        for (int i = sizeof(smileImg) / sizeof(*smileImg); i >= 0; i--) {
-          eyeMatrix[0].clear();
-
-          eyeMatrix[0].drawBitmap(0, 0, smileImg[i], 8, 8, LED_ON);
-
-          eyeMatrix[0].writeDisplay();
-
-          if (i % 6 == 0) {
-            for (int wiggleAngle : leafWiggleAngleAmount) {
-              leafServo.write(wiggleAngle);
-              delay(100);
-            }
-          }
-        }
-        for (int i = 90; i > 15; i--) {
-          leafServo.write(i);
-          delay(20);
-        }
-        for (int i = 15; i <= 90; i++) {
-          leafServo.write(i);
-          delay(20);
-        }
+        activeListening();
       } else if (currentState == scared) {
-        logDebug("scared little shit");
-
-        //        analogWrite(vibraOnePinPwm, 100);
-        //        analogWrite(vibraTwoPinPwm, 100);
-        for (int i = 0; i < sizeof(surprisedImg) / sizeof(*surprisedImg); i++) {
-          eyeMatrix[0].clear();
-
-          eyeMatrix[0].drawBitmap(0, 0, surprisedImg[i], 8, 8, LED_ON);
-
-          eyeMatrix[0].writeDisplay();
-
-          if (i % 2 == 0) {
-            for (int wiggleAngle : leafWiggleAngleAmount) {
-              leafServo.write(wiggleAngle);
-              delay(50);
-            }
-          }
-        }
+        activeScared();
       } else if (currentState == happy) {
         goAwakeFromListening();
       }
@@ -271,6 +154,97 @@ static void activeThread(struct pt *pt) {
     isActive = false;
   } while (1);
   PT_END(pt);
+}
+
+
+void activeAwake() {
+  for (int i = 0; i < sizeof(blinkImg) / sizeof(*blinkImg); i++) {
+    eyeMatrix[0].clear();
+
+    eyeMatrix[0].drawBitmap(0, 0, blinkImg[i], 8, 8, LED_ON);
+
+    eyeMatrix[0].writeDisplay();
+
+    if (i % 4 == 0) {
+      for (int wiggleAngle : leafWiggleAngleAmount) {
+        leafServo.write(wiggleAngle);
+        delay(50);
+      }
+    }
+  }
+  for (int i = 60; i > 40; i--) {
+    leafServo.write(i);
+    delay(10);
+  }
+  for (int i = 40; i <= 75; i++) {
+    leafServo.write(i);
+    delay(10);
+  }
+  for (int i = 75; i >= 60; i--) {
+    leafServo.write(i);
+    delay(10);
+  }
+  leafServo.write(60);
+}
+
+void activeListening() {
+  for (int i = 0; i < sizeof(smileImg) / sizeof(*smileImg); i++) {
+    eyeMatrix[0].clear();
+
+    eyeMatrix[0].drawBitmap(0, 0, blinkImg[i], 8, 8, LED_ON);
+
+    eyeMatrix[0].writeDisplay();
+
+    if (i % 6 == 0) {
+      for (int wiggleAngle : leafWiggleAngleAmount) {
+        leafServo.write(wiggleAngle);
+        delay(100);
+      }
+    }
+  }
+  for (int i = sizeof(smileImg) / sizeof(*smileImg); i >= 0; i--) {
+    eyeMatrix[0].clear();
+
+    eyeMatrix[0].drawBitmap(0, 0, smileImg[i], 8, 8, LED_ON);
+
+    eyeMatrix[0].writeDisplay();
+
+    if (i % 6 == 0) {
+      for (int wiggleAngle : leafWiggleAngleAmount) {
+        leafServo.write(wiggleAngle);
+        delay(100);
+      }
+    }
+  }
+  for (int i = 90; i > 15; i--) {
+    leafServo.write(i);
+    delay(20);
+  }
+  for (int i = 15; i <= 90; i++) {
+    leafServo.write(i);
+    delay(20);
+  }
+}
+
+void activeScared() {
+  logDebug("scared little shit");
+
+  //        analogWrite(vibraOnePinPwm, 100);
+  //        analogWrite(vibraTwoPinPwm, 100);
+  for (int i = 0; i < sizeof(surprisedImg) / sizeof(*surprisedImg); i++) {
+    eyeMatrix[0].clear();
+
+    eyeMatrix[0].drawBitmap(0, 0, surprisedImg[i], 8, 8, LED_ON);
+
+    eyeMatrix[0].writeDisplay();
+
+    if (i % 2 == 0) {
+      for (int wiggleAngle : leafWiggleAngleAmount) {
+        leafServo.write(wiggleAngle);
+        delay(50);
+      }
+    }
+  }
 }
 
 
@@ -520,10 +494,6 @@ bool movingThresholdReacher() {
   //  Serial.write((uint8_t)(gz >> 8)); Serial.write((uint8_t)(gz & 0xFF));
   //  Serial.println();
 #endif
-  //  logDebug("X angle: ", mappedX);
-  //  logDebug("Y angle: ", mappedY);
-  //  delay(100);
-  //  logDebug("gggggggg: ", gx);
   return (mappedX < -WAKEUP_G_FORCE || mappedX > WAKEUP_G_FORCE) || (mappedY < -WAKEUP_G_FORCE || mappedY > WAKEUP_G_FORCE);
 }
 
@@ -593,10 +563,6 @@ void debugMpu() {
   //    int val = map(ax, -32768, +32767, 0, 255);
   //     int val = map(gz, -32768, +32767, 0, 255);
 
-  //    leafServo.write(val);
-  //    delay(1);
-
-  // these methods (and a few others) are also available
   //accelgyro.getAcceleration(&ax, &ay, &az);
   accelgyro.getRotation(&gx, &gy, &gz);
 
@@ -625,67 +591,6 @@ void debugMpu() {
 }
 
 
-void playWithEyesDebug() {
-  logDebug("fuck ", (sizeof(blinkImg) / sizeof(*blinkImg)));
-  for (int i = 0; i < (sizeof(blinkImg) / sizeof(*blinkImg)); i++) {
-    eyeMatrix[0].clear();
-
-    eyeMatrix[0].drawBitmap(0, 0, blinkImg[i], 8, 8, LED_ON);
-
-    eyeMatrix[0].writeDisplay();
-
-    delay(500);
-  }
-}
-
-
-// void playWithEyesDebug2() {
-//   // Draw eyeball in current state of blinkyness (no pupil).  Note that
-//   // only one eye needs to be drawn.  Because the two eye matrices share
-//   // the same address, the same data will be received by both.
-//   matrix[MATRIX_EYES].clear();
-//   // When counting down to the next blink, show the eye in the fully-
-//   // open state.  On the last few counts (during the blink), look up
-//   // the corresponding bitmap index.
-//   matrix[MATRIX_EYES].drawBitmap(0, 0,
-//                                  blinkImg[
-//                                    (blinkCountdown < sizeof(blinkIndex)) ? // Currently blinking?
-//                                    blinkIndex[blinkCountdown] :            // Yes, look up bitmap #
-//                                    0                                       // No, show bitmap 0
-//                                  ], 8, 8, LED_ON);
-//   // Decrement blink counter.  At end, set random time for next blink.
-//   if (--blinkCountdown == 0) blinkCountdown = random(5, 180);
-//
-//   // Add a pupil (2x2 black square) atop the blinky eyeball bitmap.
-//   // Periodically, the pupil moves to a new position...
-//   if (--gazeCountdown <= gazeFrames) {
-//     // Eyes are in motion - draw pupil at interim position
-//     matrix[MATRIX_EYES].fillRect(
-//       newX - (dX * gazeCountdown / gazeFrames),
-//       newY - (dY * gazeCountdown / gazeFrames),
-//       2, 2, LED_OFF);
-//     if (gazeCountdown == 0) {   // Last frame?
-//       eyeX = newX; eyeY = newY; // Yes.  What's new is old, then...
-//       do { // Pick random positions until one is within the eye circle
-//         newX = random(7); newY = random(7);
-//         dX   = newX - 3;  dY   = newY - 3;
-//       } while ((dX * dX + dY * dY) >= 10);     // Thank you Pythagoras
-//       dX            = newX - eyeX;             // Horizontal distance to move
-//       dY            = newY - eyeY;             // Vertical distance to move
-//       gazeFrames    = random(3, 15);           // Duration of eye movement
-//       gazeCountdown = random(gazeFrames, 120); // Count to end of next movement
-//     }
-//   } else {
-//     // Not in motion yet -- draw pupil at current static position
-//     matrix[MATRIX_EYES].fillRect(eyeX, eyeY, 2, 2, LED_OFF);
-//   }
-//   // Refresh all of the matrices in one quick pass
-//   for (uint8_t i = 0; i < 4; i++) matrix[i].writeDisplay();
-//
-//   delay(20); // ~50 FPS
-// }
-
-
 void setupI2C() {
 #if I2CDEV_IMPLEMENTATION == I2CDEV_ARDUINO_WIRE
   Wire.begin();
@@ -698,9 +603,7 @@ void setupI2C() {
 void setupMpu() {
   // join I2C bus (I2Cdev library doesn't do this automatically)
   // initialize serial communication
-  // (38400 chosen because it works as well at 8MHz as it does at 16MHz, but
-  // it's really up to you depending on your project)
-  //    Serial.begin(38400);
+  // (38400 works as well at 8MHz as it does at 16MHz)
 
   // initialize device
   Serial.println("Initializing I2C devices...");
@@ -714,22 +617,10 @@ void setupMpu() {
   /*
     Serial.println("Updating internal sensor offsets...");
     // -76  -2359 1688  0 0 0
-    Serial.print(accelgyro.getXAccelOffset()); Serial.print("\t"); // -76
-    Serial.print(accelgyro.getYAccelOffset()); Serial.print("\t"); // -2359
-    Serial.print(accelgyro.getZAccelOffset()); Serial.print("\t"); // 1688
-    Serial.print(accelgyro.getXGyroOffset()); Serial.print("\t"); // 0
-    Serial.print(accelgyro.getYGyroOffset()); Serial.print("\t"); // 0
-    Serial.print(accelgyro.getZGyroOffset()); Serial.print("\t"); // 0
     Serial.print("\n");
     accelgyro.setXGyroOffset(220);
     accelgyro.setYGyroOffset(76);
     accelgyro.setZGyroOffset(-85);
-    Serial.print(accelgyro.getXAccelOffset()); Serial.print("\t"); // -76
-    Serial.print(accelgyro.getYAccelOffset()); Serial.print("\t"); // -2359
-    Serial.print(accelgyro.getZAccelOffset()); Serial.print("\t"); // 1688
-    Serial.print(accelgyro.getXGyroOffset()); Serial.print("\t"); // 0
-    Serial.print(accelgyro.getYGyroOffset()); Serial.print("\t"); // 0
-    Serial.print(accelgyro.getZGyroOffset()); Serial.print("\t"); // 0
     Serial.print("\n");
   */
 }
