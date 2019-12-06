@@ -227,10 +227,6 @@ void activeListening() {
 }
 
 void activeScared() {
-  logDebug("scared little shit");
-
-  //        analogWrite(vibraOnePinPwm, 100);
-  //        analogWrite(vibraTwoPinPwm, 100);
   for (int i = 0; i < sizeof(surprisedImg) / sizeof(*surprisedImg); i++) {
     eyeMatrix[0].clear();
 
@@ -465,9 +461,7 @@ bool movingThresholdReacher() {
 
   // these methods (and a few others) are also available
   //  accelgyro.getAcceleration(&ax, &ay, &az);
-  //  logDebug("fuck");
   accelgyro.getRotation(&gx, &gy, &gz);
-  //  logDebug("this");
 
 #ifdef OUTPUT_READABLE_ACCELGYRO
   // display tab-separated accel/gyro x/y/z values
