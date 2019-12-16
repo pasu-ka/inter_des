@@ -1,5 +1,5 @@
 /*
-  Mr. Bamboo
+  Mr. X
   A friendly little companion
 
 
@@ -55,6 +55,8 @@ void setup() {
     pinMode(leafLedPinPwm, OUTPUT);
     digitalWrite(leafLedPinPwm, HIGH);
   }
+  pinMode(leafLedPinPwm, OUTPUT);
+  digitalWrite(leafLedPinPwm, HIGH);
   currentState = sleep;
 
   /* Initialize the protothread state variables with PT_INIT(). */
@@ -92,12 +94,13 @@ static void listenThread(struct pt *pt) {
         } else if (currentState == awake) {
           goListening();
         } else if (currentState == listening) {
-          resetTimeoutTimer(); // TODO don't reset active timer here
+          resetTimeoutTimer();
         }
       } else if (soundLevel == bang) {
         goScared();
       }
     }
+    soundLevel = 0;
   }
   PT_END(pt);
 }
@@ -110,7 +113,7 @@ static void timeoutThread(struct pt *pt) {
     PT_WAIT_UNTIL(pt, timer_expired(&timeoutTimer));
     if (debugMode) {
       int tmp = millis();
-      //      logDebug("timeoutTimer: ", (tmp - timeoutDur) / 1000);
+      logDebug("timeoutTimer: ", (tmp - timeoutDur) / 1000);
       timeoutDur = tmp;
     }
     logDebug("timeoutTimer RINGIDINGI");
@@ -136,7 +139,7 @@ static void activeThread(struct pt *pt) {
     PT_WAIT_UNTIL(pt, timer_expired(&activeTimer));
     if (debugMode) {
       int tmp = millis();
-      //      logDebug("activeTimer: ", (tmp - activeDur) / 1000);
+      logDebug("activeTimer: ", (tmp - activeDur) / 1000);
       activeDur = tmp;
     }
     isActive = true;
@@ -172,19 +175,19 @@ void activeAwake() {
       }
     }
   }
-  for (int i = 60; i > 40; i--) {
+  for (int i = 50; i > 30; i--) {
     leafServo.write(i);
     delay(10);
   }
-  for (int i = 40; i <= 75; i++) {
+  for (int i = 20; i <= 45; i++) {
     leafServo.write(i);
     delay(10);
   }
-  for (int i = 75; i >= 60; i--) {
+  for (int i = 45; i >= 30; i--) {
     leafServo.write(i);
     delay(10);
   }
-  leafServo.write(60);
+  leafServo.write(50);
 }
 
 void activeListening() {
@@ -216,11 +219,11 @@ void activeListening() {
       }
     }
   }
-  for (int i = 90; i > 15; i--) {
+  for (int i = 50; i > 20; i--) {
     leafServo.write(i);
     delay(20);
   }
-  for (int i = 15; i <= 90; i++) {
+  for (int i = 20; i <= 50; i++) {
     leafServo.write(i);
     delay(20);
   }
@@ -277,7 +280,7 @@ void goSleep() {
   stateChanging = true;
   logDebug("going to sleep");
   currentState = sleep;
-  int vibra = 150;
+  int vibra = 120;
   int leafPos = 80;
   int brightness = 14;
   for (int i = 0; i < (sizeof(sleepImg) / sizeof(*sleepImg)); i++) {
@@ -287,22 +290,26 @@ void goSleep() {
 
     eyeMatrix[0].setBrightness(brightness);
     eyeMatrix[0].writeDisplay();
-    analogWrite(vibraOnePinPwm, vibra);
-    analogWrite(vibraTwoPinPwm, vibra);
-    if (leafPos > 15) {
+    if (vibra >= 0) {
+      analogWrite(vibraOnePinPwm, vibra);
+      analogWrite(vibraTwoPinPwm, vibra);
+    }
+
+    if (leafPos > 5) {
       leafServo.write(leafPos);
+    } else {
+      leafServo.write(5);
     }
     brightness = brightness - 2;
-    leafPos = leafPos - 6;
+    leafPos = leafPos - 8;
     vibra = vibra - 20;
     delay(300);
   }
-  leafServo.write(15);
+
   analogWrite(vibraOnePinPwm, 0);
   analogWrite(vibraTwoPinPwm, 0);
   resetTimers();
   stateChanging = false;
-  logDebug("finished");
 }
 
 
@@ -337,7 +344,7 @@ void goAwakeFromSleep() {
       break;
     }
   }
-  leafServo.write(60);
+  leafServo.write(50);
   analogWrite(vibraOnePinPwm, 0);
   analogWrite(vibraTwoPinPwm, 0);
   resetTimers();
@@ -450,29 +457,9 @@ static void wiggleLeaf(int wiggleRepetition) {
 
 
 bool movingThresholdReacher() {
-  // read raw accel/gyro measurements from device
-  //  accelgyro.getMotion6(&ax, &ay, &az, &gx, &gy, &gz);
-
-
-  //     int val = map(gz, -32768, +32767, 0, 255);
-
-  //    leafServo.write(val);
-  //    delay(1);
-
-  // these methods (and a few others) are also available
-  //  accelgyro.getAcceleration(&ax, &ay, &az);
   accelgyro.getRotation(&gx, &gy, &gz);
 
 #ifdef OUTPUT_READABLE_ACCELGYRO
-  // display tab-separated accel/gyro x/y/z values
-  //        Serial.print("a/g:\t");
-  //        Serial.print(ax); Serial.print("\t");
-  //        Serial.print(ay); Serial.print("\t");
-  //        Serial.print(az); Serial.print("\t");
-  //        Serial.println();
-  //  Serial.print(gx); Serial.print("\t");
-  //  Serial.print(gy); Serial.print("\t");
-  //  Serial.println(gz);
 
   // map to angleº
   int mappedX = map(gx, -32768, +32767, -180, 180);
@@ -495,10 +482,11 @@ bool movingThresholdReacher() {
 int soundThresholdReached() {
   unsigned long startMillis = millis(); // Start of sample window
   unsigned int peakToPeak = 0;  // peak-to-peak level
-  //  unsigned int mean = 0;  // average level
 
   unsigned int signalMax = 0;
   unsigned int signalMin = 1024;
+
+  double mean = 0;
 
   // collect data for x mS
   while (millis() - startMillis < SOUND_SAMPLE_WINDOW)
@@ -517,10 +505,9 @@ int soundThresholdReached() {
     }
   }
   peakToPeak = signalMax - signalMin;  // max - min = peak-peak amplitude
-  //  mean = (signalMax + signalMin) / 2;
-  double mean = (peakToPeak * 5.0) / 1024;  // convert to volts
-  //    logDebug("bleb",volts);
-  //  logDebug("sound level: ", mean);
+  mean = (peakToPeak * 5.0) / 1024;  // convert to volts
+  logDebug("mic voltage: ", volts);
+  logDebug("sound level: ", mean);
   if (mean >= soundLevelThresholdScared) {
     return bang;
   } else if (mean >= soundLevelThresholdWakeup) {
@@ -532,8 +519,9 @@ int soundThresholdReached() {
 
 
 void setupLeafServo() {
+  leafServo.write(5);
   leafServo.attach(leafServoPinPwm);
-  leafServo.write(15);
+
 }
 
 
@@ -544,38 +532,20 @@ void setupEyeLedMatrix() {
   // Initialize each matrix object:
   for (uint8_t i = 0; i < 4; i++) {
     eyeMatrix[i].begin(eyeMatrixAddr[i]);
-    // If using 'small' (1.2") displays vs. 'mini' (0.8"), enable this:
-    // eyeMatrix[i].setRotation(3);
   }
 }
 
 
 void debugMpu() {
-  // read raw accel/gyro measurements from device
-  //  accelgyro.getMotion6(&ax, &ay, &az, &gx, &gy, &gz);
-
-  //    int val = map(ax, -32768, +32767, 0, 255);
-  //     int val = map(gz, -32768, +32767, 0, 255);
-
-  //accelgyro.getAcceleration(&ax, &ay, &az);
   accelgyro.getRotation(&gx, &gy, &gz);
 
 #ifdef OUTPUT_READABLE_ACCELGYRO
-  // display tab-separated accel/gyro x/y/z values
-  //        Serial.print("a/g:\t");
-  //        Serial.print(ax); Serial.print("\t");
-  //        Serial.print(ay); Serial.print("\t");
-  //        Serial.print(az); Serial.print("\t");
-  //        Serial.println();
   Serial.print(gx); Serial.print("\t");
   Serial.print(gy); Serial.print("\t");
   Serial.println(gz);
 #endif
 
 #ifdef OUTPUT_BINARY_ACCELGYRO
-  //        Serial.write((uint8_t)(ax >> 8)); Serial.write((uint8_t)(ax & 0xFF));
-  //        Serial.write((uint8_t)(ay >> 8)); Serial.write((uint8_t)(ay & 0xFF));
-  //        Serial.write((uint8_t)(az >> 8)); Serial.write((uint8_t)(az & 0xFF));
   Serial.write((uint8_t)(gx >> 8)); Serial.write((uint8_t)(gx & 0xFF));
   Serial.write((uint8_t)(gy >> 8)); Serial.write((uint8_t)(gy & 0xFF));
   Serial.write((uint8_t)(gz >> 8)); Serial.write((uint8_t)(gz & 0xFF));
@@ -606,17 +576,6 @@ void setupMpu() {
   // verify connection
   Serial.println("Testing device connections...");
   Serial.println(accelgyro.testConnection() ? "MPU6050 connection successful" : "MPU6050 connection failed");
-
-  // use the code below to change accel/gyro offset values
-  /*
-    Serial.println("Updating internal sensor offsets...");
-    // -76  -2359 1688  0 0 0
-    Serial.print("\n");
-    accelgyro.setXGyroOffset(220);
-    accelgyro.setYGyroOffset(76);
-    accelgyro.setZGyroOffset(-85);
-    Serial.print("\n");
-  */
 }
 
 

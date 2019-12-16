@@ -165,9 +165,9 @@ blinkImg[][8] = {
 };
 
 
-static const uint8_t PROGMEM // Bitmaps are stored in program memory
-blinkImg2[][8] = {    // Eye animation frames
-  { B00111100,         // Fully open eye
+static const uint8_t PROGMEM
+blinkImg2[][8] = {
+  { B00111100,
     B01111110,
     B11111111,
     B11111111,
