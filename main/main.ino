@@ -56,7 +56,7 @@ void setup() {
     digitalWrite(leafLedPinPwm, HIGH);
   }
   pinMode(leafLedPinPwm, OUTPUT);
-  digitalWrite(leafLedPinPwm, HIGH);
+  analogWrite(leafLedPinPwm, 100);
   currentState = sleep;
 
   /* Initialize the protothread state variables with PT_INIT(). */
@@ -68,9 +68,6 @@ void setup() {
 
 
 void loop() {
-  if (debugMode) {
-
-  }
   listenThread(&listenPt);
   timeoutThread(&timeoutPt);
   moveThread(&movePt);
@@ -283,6 +280,7 @@ void goSleep() {
   int vibra = 120;
   int leafPos = 80;
   int brightness = 14;
+  int leafLedBrightness = 250;
   for (int i = 0; i < (sizeof(sleepImg) / sizeof(*sleepImg)); i++) {
     eyeMatrix[0].clear();
 
@@ -300,14 +298,20 @@ void goSleep() {
     } else {
       leafServo.write(5);
     }
+
+    if (leafLedBrightness >= 50) {
+      analogWrite(leafLedPinPwm, leafLedBrightness);
+    }
     brightness = brightness - 2;
     leafPos = leafPos - 8;
     vibra = vibra - 20;
-    delay(300);
+    leafLedBrightness = leafLedBrightness - 40;
+    delay(250);
   }
 
   analogWrite(vibraOnePinPwm, 0);
   analogWrite(vibraTwoPinPwm, 0);
+  analogWrite(leafLedPinPwm, 50);
   resetTimers();
   stateChanging = false;
 }
@@ -325,6 +329,7 @@ void goAwakeFromSleep() {
   for (int i = 0; i < duration; i++) {
     analogWrite(vibraOnePinPwm, strength);
     analogWrite(vibraTwoPinPwm, strength);
+    analogWrite(leafLedPinPwm, 250);
     strength = strength - 10;
     eyeMatrix[0].setBrightness(16);
     if (i < (sizeof(blinkImg) / sizeof(*blinkImg)) && uglyBool) {
@@ -399,6 +404,7 @@ void goScared() {
 
   currentState = scared;
   logDebug("going to scared");
+  analogWrite(leafLedPinPwm, 250);
   int vibra = 250;
   for (int i = 0; i < (sizeof(surprisedImg) / sizeof(*surprisedImg)); i++) {
     eyeMatrix[0].clear();

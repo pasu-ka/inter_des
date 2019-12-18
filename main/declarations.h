@@ -37,7 +37,7 @@ dX   = 0, dY   = 0;   // Distance from prior to new position
 
 Servo leafServo;
 struct timer timeoutTimer, activeTimer;
-// every protothread needs an own struct pt variable
+// every protothread needs their own struct pt variable
 static struct pt listenPt, timeoutPt, movePt, activePt;
 unsigned int soundSample;
 static unsigned long timeoutDur;
