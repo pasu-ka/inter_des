@@ -1,5 +1,5 @@
 /*
-  Mr. X
+  Mr. Bam'o
   A friendly little companion
 
 
@@ -51,12 +51,7 @@ void setup() {
   setupEyeLedMatrix();
   setupMpu();
 
-  if (debugMode) {
-    pinMode(leafLedPinPwm, OUTPUT);
-    digitalWrite(leafLedPinPwm, HIGH);
-  }
   pinMode(leafLedPinPwm, OUTPUT);
-  analogWrite(leafLedPinPwm, 100);
   currentState = sleep;
 
   /* Initialize the protothread state variables with PT_INIT(). */
@@ -278,9 +273,8 @@ void goSleep() {
   logDebug("going to sleep");
   currentState = sleep;
   int vibra = 120;
-  int leafPos = 80;
+  int leafPos = 50;
   int brightness = 14;
-  int leafLedBrightness = 250;
   for (int i = 0; i < (sizeof(sleepImg) / sizeof(*sleepImg)); i++) {
     eyeMatrix[0].clear();
 
@@ -298,20 +292,16 @@ void goSleep() {
     } else {
       leafServo.write(5);
     }
-
-    if (leafLedBrightness >= 50) {
-      analogWrite(leafLedPinPwm, leafLedBrightness);
-    }
     brightness = brightness - 2;
     leafPos = leafPos - 8;
     vibra = vibra - 20;
-    leafLedBrightness = leafLedBrightness - 40;
     delay(250);
   }
 
   analogWrite(vibraOnePinPwm, 0);
   analogWrite(vibraTwoPinPwm, 0);
-  analogWrite(leafLedPinPwm, 50);
+
+  digitalWrite(leafLedPinPwm, LOW);
   resetTimers();
   stateChanging = false;
 }
@@ -329,7 +319,8 @@ void goAwakeFromSleep() {
   for (int i = 0; i < duration; i++) {
     analogWrite(vibraOnePinPwm, strength);
     analogWrite(vibraTwoPinPwm, strength);
-    analogWrite(leafLedPinPwm, 250);
+
+    digitalWrite(leafLedPinPwm, HIGH);
     strength = strength - 10;
     eyeMatrix[0].setBrightness(16);
     if (i < (sizeof(blinkImg) / sizeof(*blinkImg)) && uglyBool) {
@@ -404,7 +395,8 @@ void goScared() {
 
   currentState = scared;
   logDebug("going to scared");
-  analogWrite(leafLedPinPwm, 250);
+
+  digitalWrite(leafLedPinPwm, HIGH);
   int vibra = 250;
   for (int i = 0; i < (sizeof(surprisedImg) / sizeof(*surprisedImg)); i++) {
     eyeMatrix[0].clear();
@@ -512,7 +504,6 @@ int soundThresholdReached() {
   }
   peakToPeak = signalMax - signalMin;  // max - min = peak-peak amplitude
   mean = (peakToPeak * 5.0) / 1024;  // convert to volts
-  logDebug("mic voltage: ", volts);
   logDebug("sound level: ", mean);
   if (mean >= soundLevelThresholdScared) {
     return bang;
